@@ -163,7 +163,7 @@ sensor:
 
   - platform: mqtt
     name: "Nilan Luftfugtighed"
-    state_topic: "moist/NilanRH"
+    state_topic: "moist/nilan/RH"
     unit_of_measurement: "%"
     device_class: humidity
 
