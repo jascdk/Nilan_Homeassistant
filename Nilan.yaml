@@ -180,7 +180,7 @@ sensor:
 
   - platform: mqtt
     name: "Nilan Udblæs Procent"
-    state_topic: "ventilation/speed/ExhaustSpeeed"
+    state_topic: "ventilation/speed/ExhaustSpeed"
     value_template: >-
      {{ value | float | multiply(0.01) | round(0) }}
     unit_of_measurement: "%" 
