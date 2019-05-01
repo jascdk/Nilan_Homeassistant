@@ -60,7 +60,7 @@ char *regnames[][MAXREGSIZE] = {
     //control
     {"Type", "RunSet", "ModeSet", "VentSet", "TempSet", "ServiceMode", "ServicePct", "Preset"},
     //speed
-    {"ExhaustSpeeed", "InletSpeed"},
+    {"ExhaustSpeed", "InletSpeed"},
     //airtemp
     {"CoolSet", "TempMinSum", "TempMinWin", "TempMaxSum", "TempMaxWin", "TempSummer"},
     //airflow
