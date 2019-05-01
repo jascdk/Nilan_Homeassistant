@@ -1,0 +1,89 @@
+esphome:
+  name: nilan_lcd_info_panel
+  platform: ESP8266
+  board: nodemcuv2
+
+wifi:
+  ssid: !secret ssid
+  password: !secret pass
+  manual_ip:
+    # Set this to the IP of the ESP
+    static_ip: 10.0.1.190
+    # Set this to the IP address of the router. Often ends with .1
+    gateway: 10.0.1.1
+    # The subnet of the network. 255.255.255.0 works for most home networks.
+    subnet: 255.255.255.0
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+
+ota:
+
+mqtt:
+  broker: 10.0.1.17
+
+# Example configuration entry
+i2c:
+  sda: D1
+  scl: D2
+  
+time:
+  - platform: homeassistant
+    id: time
+    
+sensor:
+
+  - platform: homeassistant
+    id: temp_nilan
+    entity_id: sensor.nilan_indblaes_temp
+    internal: true
+
+text_sensor:
+
+  - platform: homeassistant
+    id: status_nilan
+    entity_id: climate.nilan_genvex
+    internal: true
+    
+  - platform: mqtt_subscribe
+    id: target_nilan
+    topic: convert/tempset
+    internal: true
+    
+  - platform: mqtt_subscribe
+    id: fan_nilan
+    topic: ventilation/control/VentSet
+    internal: true
+ 
+display:
+  - platform: lcd_pcf8574
+    dimensions: 20x4
+    address: 0x27
+    lambda: |-
+          
+          // Print 0 at the top left
+          it.print(4,0,"NILAN AIR");
+          
+          //Print the correct clock / time from Home Assistant
+          it.strftime(15,0,"%H:%M", id(time).now());
+    
+          //Print the actual temp blowing in 
+          if (id(temp_nilan).has_state()){
+          it.printf(0,3,"IN :%.1fc", id(temp_nilan).state);}
+      
+          //Print the nilan state - auto, heat, cool etc.  
+          if (id(status_nilan).has_state()){
+          it.printf(10,3,"MODE: %s", id(status_nilan).state.c_str());}
+      
+          //Print the target temperature for the room - ex. what have you set your thermostat at.
+          if (id(target_nilan).has_state()) {
+          it.printf(0,2,"SET:%sc", id(target_nilan).state.c_str());}
+          
+          //Print the fan mode 1, 2 , 3, 4
+          if (id(fan_nilan).has_state()) {
+          it.printf(10,2,"FAN :    %s", id(fan_nilan).state.c_str());}
+      
+            
