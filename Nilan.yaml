@@ -194,8 +194,8 @@ binary_sensor:
   - platform: mqtt
     name: "Nilan Bypass"
     state_topic: "ventilation/output/BypassClose"
-    payload_on: "1"
-    payload_off: "0"
+    payload_on: "0"
+    payload_off: "1"
     device_class: opening     
 
 #################################
