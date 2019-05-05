@@ -1,0 +1,226 @@
+#################################
+###  Nilan Genvex             ###
+#################################  
+
+homeassistant:
+
+climate:
+ - platform: mqtt
+   name: "Nilan Genvex"
+   qos: 2
+   payload_on: 1
+   payload_off: 0
+   power_command_topic: "ventilation/runset"
+   modes:
+     - auto
+     - heat
+     - cool
+     - 'off'
+   mode_state_topic: "ventilation/control/ModeSet" 
+   mode_state_template: >-
+     {% set modes = { '0':'off', '1':'heat',  '2':'cool', '3':'auto'} %}
+     {{ modes[value] if value in modes.keys() else 'off' }}
+   mode_command_topic: "convert/modeset"
+   current_temperature_topic: "temp/T7_Inlet"
+   min_temp: 16
+   max_temp: 28
+   temp_step: 1.0
+   temperature_state_topic: "ventilation/control/TempSet"
+   temperature_state_template: >-
+    {{ value | float | multiply(0.01) | round(1) }}
+   temperature_command_topic: "convert/tempset"
+   retain: true
+
+#################################
+###        Automations        ###
+#################################     
+
+automation:
+
+- alias: 'Convert HVAC Mode'
+  initial_state: 'on'
+  hide_entity: true
+  trigger:
+    platform: mqtt
+    topic: convert/modeset
+  action:
+    service: mqtt.publish
+    data_template:
+      topic: "ventilation/modeset"
+      payload: >-
+        {% set mode_name = trigger.payload %}
+        {% set modes = { 'off':'0', 'heat':'1', 'cool':'2', 'auto':'3' } %}
+        {{ modes[mode_name] if mode_name in modes.keys() else '0' }}
+- alias: 'Convert HVAC Temperature'
+  initial_state: 'on'
+  hide_entity: true
+  trigger:
+    platform: mqtt
+    topic: convert/tempset
+  action:
+    service: mqtt.publish
+    data_template:
+      topic: "ventilation/tempset"
+      payload: "{{ trigger.payload | float | multiply(100) | round }}" 
+
+- alias: Nilan Controller Offline
+  initial_state: 'on'
+  hide_entity: true
+  trigger:
+    platform: state
+    entity_id: binary_sensor.nilan_controller
+    to: 'off'
+  action:
+    - service: notify.pushbullet
+      data:
+        message: ""
+        title: 'Nilan Offline Kl: {{ now().strftime("%H:%M") }}'
+
+- alias: Nilan Controller Online
+  initial_state: 'on'
+  hide_entity: true
+  trigger:
+    platform: state
+    entity_id: binary_sensor.nilan_controller
+    to: 'on'
+  action:
+    - service: notify.pushbullet
+      data:
+        message: ""
+        title: 'Nilan Online Kl: {{ now().strftime("%H:%M") }}' 
+
+- alias: Nilan Bypass Closed
+  initial_state: 'on'
+  hide_entity: true
+  trigger:
+    platform: state
+    entity_id: binary_sensor.nilan_bypass
+    to: 'off'
+  action:
+    - service: notify.pushbullet
+      data:
+        message: ""
+        title: 'Nilan Bypass-Spjæld Lukket Kl: {{ now().strftime("%H:%M") }}'
+
+- alias: Nilan Bypass Open
+  initial_state: 'on'
+  hide_entity: true
+  trigger:
+    platform: state
+    entity_id: binary_sensor.nilan_bypass
+    to: 'on'
+  action:
+    - service: notify.pushbullet
+      data:
+        message: ""
+        title: 'Nilan Bypass-Spjæld Åben Kl: {{ now().strftime("%H:%M") }}'                     
+
+#################################
+###  Nilan Temp Sensorer      ###
+#################################    
+
+sensor:
+  - platform: mqtt
+    name: "Nilan Udendørs Temp"
+    state_topic: "temp/T8_Outdoor"
+    unit_of_measurement: "°C"
+    device_class: temperature
+
+  - platform: mqtt
+    name: "Nilan Indblæs Temp"
+    state_topic: "temp/T7_Inlet"
+    unit_of_measurement: "°C"
+    device_class: temperature
+  
+  - platform: mqtt
+    name: "Nilan Rum Temp"
+    state_topic: "temp/T15_Room"
+    unit_of_measurement: "°C"
+    device_class: temperature  
+
+  - platform: mqtt
+    name: "Nilan CTS602 Temp"
+    state_topic: "temp/T0_Controller"
+    unit_of_measurement: "°C"
+    device_class: temperature
+
+  - platform: mqtt
+    name: "Nilan Gennemsnitlig Rum Temp"
+    state_topic: "temp/T3_Exhaust"
+    unit_of_measurement: "°C"
+    device_class: temperature  
+        
+  - platform: mqtt
+    name: "Nilan Afkast Temp"
+    state_topic: "temp/T4_Outlet"
+    unit_of_measurement: "°C"
+    device_class: temperature 
+
+#################################
+###  Nilan Fugt Sensor        ###
+#################################        
+
+  - platform: mqtt
+    name: "Nilan Luftfugtighed"
+    state_topic: "moist/nilan/RH"
+    unit_of_measurement: "%"
+    device_class: humidity
+
+#################################
+###  Nilan Luftmængde Sensor  ###
+#################################      
+
+  - platform: mqtt
+    name: "Nilan Indblæs Procent"
+    state_topic: "ventilation/speed/InletSpeed"
+    value_template: >-
+     {{ value | float | multiply(0.01) | round(0) }}
+    unit_of_measurement: "%"
+
+  - platform: mqtt
+    name: "Nilan Udblæs Procent"
+    state_topic: "ventilation/speed/ExhaustSpeed"
+    value_template: >-
+     {{ value | float | multiply(0.01) | round(0) }}
+    unit_of_measurement: "%" 
+
+#################################
+### Nilan Bypass-Spjæld Sensor###
+#################################       
+
+binary_sensor:
+
+  - platform: mqtt
+    name: "Nilan Bypass"
+    state_topic: "ventilation/output/BypassClose"
+    payload_on: "0"
+    payload_off: "1"
+    device_class: opening     
+
+#################################
+###  Nilan Blæser Kontrol     ###
+#################################    
+
+fan:
+  - platform: mqtt
+    name: "Nilan"
+    state_topic: "ventilation/control/RunSet"
+    command_topic: "ventilation/runset"
+    speed_state_topic: "ventilation/control/VentSet"
+    speed_command_topic: "ventilation/ventset"
+    qos: 2
+    retain: true
+    payload_on: "1"
+    payload_off: "0"
+    payload_low_speed: "1"
+    payload_medium_speed: "3"
+    payload_high_speed: "4"
+    speeds:
+      - "off"
+      - low
+      - medium
+      - high
+
+
+
+   
