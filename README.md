@@ -47,11 +47,19 @@ Any MQTT-Tool (I use on my mac a tool called "MQTT Box") can be used to get the 
 
 ### Integrate with Home Assistant.
 
-For my integration i use a package with all my Nilan config in just one file. The file can be downloaded above.
+For my integration i use a package with all my Nilan config yaml in just one file. The file can be downloaded above.
 
 Put the code inside the Packages folder and you would be able to get something like this after a restart - cool right:):
 
 ![HA_GUI](HA_GUI.png)
+
+### Making External displays, that shows you the Nilan Data:
+
+I have tried to make some LCD´s using some 4x16 rows displays together with an ESP32 running ESP-Home www.esphome.io .
+
+If you wanna try it out you can use my provided .yaml code for ESP-Home above:)
+
+
 
 
 
