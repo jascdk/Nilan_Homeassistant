@@ -195,7 +195,18 @@ binary_sensor:
     state_topic: "ventilation/output/BypassClose"
     payload_on: "0"
     payload_off: "1"
-    device_class: opening     
+    device_class: opening
+    
+#################################
+### Nilan Ping Sensor         ###
+#################################  
+  
+  - platform: ping
+    name: Nilan Controller
+    host: XX.X.X.XXX // The Ip adress of your ESP board 
+    count: 2
+    scan_interval: 30  
+    
 
 #################################
 ###  Nilan Blæser Kontrol     ###
