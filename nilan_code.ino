@@ -402,7 +402,7 @@ void loop()
               case reqtemp:
                 if (strncmp("RH", name, 2) == 0)
                 {
-                  mqname = "moist/nilan/RH"; // Subscribe to moisture-level
+                  mqname = "moist/nilan/"; // Subscribe to moisture-level
                 }
                 dtostrf((rsbuffer[i] / 100.0), 5, 2, numstr);
                 break;
