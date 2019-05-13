@@ -18,7 +18,7 @@ const char* password = "XX"; // Put in you SSID Password
 char chipid[12];
 const char* mqttserver="XX"; // Put in the IP adresse of your MQTT broker
 const char* mqttusername = NULL; // Username for the MQTT broker (NULL if no username is required)
-const char* mqttpassword = NULL; // Passowrd for the MQTT broker (NULL if no password is required)
+const char* mqttpassword = NULL; // Password for the MQTT broker (NULL if no password is required)
 WiFiServer server(80);
 WiFiClient client;
 PubSubClient mqttclient(client);
