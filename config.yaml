@@ -183,6 +183,17 @@ sensor:
     value_template: >-
      {{ value | float | multiply(0.01) | round(0) }}
     unit_of_measurement: "%" 
+    
+#################################
+###Nilan Krydsveklser Effekt  ###
+#################################      
+
+  - platform: mqtt
+    name: "Nilan Krydsveklser Effektivitet"
+    state_topic: "ventilation/inputairtemp/EffPct"
+    value_template: >-
+     {{ value | float | multiply(0.01) | round(0) }}
+    unit_of_measurement: "%"     
 
 #################################
 ### Nilan Bypass-Spjæld Sensor###
