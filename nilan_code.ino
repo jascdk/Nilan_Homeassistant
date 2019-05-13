@@ -367,8 +367,8 @@ void loop()
     long now = millis();
     if (now - lastMsg > SENDINTERVAL)
     {
-      reqtypes rr[] = {reqtemp, reqcontrol, reqoutput, reqspeed, reqalarm}; // put another register in this line to subscribe
-      for (int i = 0; i < 5; i++) // change value "5" to how many registers you want to subscribe to
+      reqtypes rr[] = {reqtemp, reqcontrol, reqoutput, reqspeed, reqalarm, reqinputairtemp, requser}; // put another register in this line to subscribe
+      for (int i = 0; i < 7; i++) // change value "5" to how many registers you want to subscribe to
       {
         reqtypes r = rr[i];
         char result = ReadModbus(regaddresses[r], regsizes[r], rsbuffer, regtypes[r] & 1); 
@@ -399,6 +399,14 @@ void loop()
                 mqname = "ventilation/alarm/"; // Subscribe to the "alarm" register
                 itoa((rsbuffer[i]), numstr, 10);
                 break;
+              case reqinputairtemp:
+                mqname = "ventilation/inputairtemp/"; // Subscribe to the "inputairtemp" register
+                itoa((rsbuffer[i]), numstr, 10);
+                break;
+              case requser:
+                mqname = "ventilation/user/"; // Subscribe to the "user" register
+                itoa((rsbuffer[i]), numstr, 10);
+                break;          
               case reqtemp:
                 if (strncmp("RH", name, 2) == 0)
                 {
