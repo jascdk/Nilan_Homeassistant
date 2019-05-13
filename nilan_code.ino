@@ -17,6 +17,8 @@ const char* ssid = "XX"; // Put in your SSID
 const char* password = "XX"; // Put in you SSID Password
 char chipid[12];
 const char* mqttserver="XX"; // Put in the IP adresse of your MQTT broker
+const char* mqttusername = NULL; // Username for the MQTT broker (NULL if no username is required)
+const char* mqttpassword = NULL; // Passowrd for the MQTT broker (NULL if no password is required)
 WiFiServer server(80);
 WiFiClient client;
 PubSubClient mqttclient(client);
@@ -320,7 +322,7 @@ void mqttreconnect()
   int numretries = 0;
   while (!mqttclient.connected() && numretries < 3)
   {
-    if (mqttclient.connect(chipid))
+    if (mqttclient.connect(chipid, mqttusername, mqttpassword))
     {
       mqttclient.subscribe("ventilation/ventset");
       mqttclient.subscribe("ventilation/modeset");
