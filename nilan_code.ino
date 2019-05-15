@@ -45,13 +45,14 @@ enum reqtypes
   reqoutput,
   reqdisplay1,
   reqdisplay2,
+  reqairbypass,
   reqmax
 };
 
-String groups[] = {"temp", "alarm", "time", "control", "speed", "airtemp", "airflow", "airheat", "user", "user2", "info", "inputairtemp", "app", "output", "display1", "display2"};
-byte regsizes[] = {23, 10, 6, 8, 2, 6, 2, 0, 6, 6, 14, 7, 4, 26, 4, 4};
-int regaddresses[] = {200, 400, 300, 1000, 200, 1200, 1100, 0, 600, 610, 100, 1200, 0, 100, 2002, 2007};
-byte regtypes[] = {8, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 2, 1, 4, 4};
+String groups[] = {"temp", "alarm", "time", "control", "speed", "airtemp", "airflow", "airheat", "user", "user2", "info", "inputairtemp", "app", "output", "display1", "display2", "airbypass"};
+byte regsizes[] = {23, 10, 6, 8, 2, 6, 2, 0, 6, 6, 14, 7, 4, 26, 4, 4, 1};
+int regaddresses[] = {200, 400, 300, 1000, 200, 1200, 1100, 0, 600, 610, 100, 1200, 0, 100, 2002, 2007, 3000};
+byte regtypes[] = {8, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 2, 1, 4, 4, 1};
 char *regnames[][MAXREGSIZE] = {
     //temp
     {"T0_Controller", NULL, NULL, "T3_Exhaust", "T4_Outlet", NULL, NULL, "T7_Inlet", "T8_Outdoor", NULL, NULL, NULL, NULL, NULL, NULL, "T15_Room", NULL, NULL, NULL, NULL, NULL, "RH", NULL},
@@ -84,7 +85,9 @@ char *regnames[][MAXREGSIZE] = {
     //display1
     {"Text_1_2", "Text_3_4", "Text_5_6", "Text_7_8"},
     //display2
-    {"Text_1_2", "Text_3_4", "Text_5_6", "Text_7_8"}};
+    {"Text_1_2", "Text_3_4", "Text_5_6", "Text_7_8"},
+    //airbypass
+    {"Airbypass.IsOpen"}};
 
 char *getName(reqtypes type, int address)
 {
@@ -391,6 +394,10 @@ void loop()
                 break;
               case reqoutput:
                 mqname = "ventilation/output/"; // Subscribe to the "output" register
+                itoa((rsbuffer[i]), numstr, 10);
+                break;
+              case reqairbypass:
+                mqname = "ventilation/airbypass/"; // Subscribe to the "airbypass" register
                 itoa((rsbuffer[i]), numstr, 10);
                 break;
               case reqspeed:
