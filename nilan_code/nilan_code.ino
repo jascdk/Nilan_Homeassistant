@@ -3,7 +3,7 @@
 #include <ArduinoOTA.h>
 #include <ModbusMaster.h>
 #include <PubSubClient.h>
-
+#include "configuration.h"
 
 #define HOST "NilanGW-%s" // Change this to whatever you like. 
 #define MAXREGSIZE 26
@@ -13,12 +13,12 @@
 #define MODESET 1002
 #define TEMPSET 1004
 
-const char* ssid = "XX"; // Put in your SSID
-const char* password = "XX"; // Put in you SSID Password
+const char* ssid = WIFISSID;
+const char* password = WIFIPASSWORD;
 char chipid[12];
-const char* mqttserver="XX"; // Put in the IP adresse of your MQTT broker
-const char* mqttusername = NULL; // Username for the MQTT broker (NULL if no username is required)
-const char* mqttpassword = NULL; // Password for the MQTT broker (NULL if no password is required)
+const char* mqttserver = MQTTSERVER;
+const char* mqttusername = MQTTUSERNAME;
+const char* mqttpassword = MQTTPASSWORD;
 WiFiServer server(80);
 WiFiClient client;
 PubSubClient mqttclient(client);
