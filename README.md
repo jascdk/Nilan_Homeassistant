@@ -14,7 +14,7 @@ Please proceed this project at your own risk!!!
 
 I used the arduino editor to upload the code to my ESP8266 (for now a wemos D1 mini). If your sketch wont compile please check if you use the arduino.json V. 5 or V.6 library. This code uses V.5 and wont build with V.6. 
 
-In the code you just need to fill in : Wifi SSID, PASSWORD and MQTT Broker IP Adress.
+For setting up your wifi and mqtt broker provide your credentials in the configuration.h file
 
 
 ### Setup the Hardware:
@@ -51,7 +51,7 @@ For my integration i use a package with all my Nilan config yaml in just one fil
 
 After a restart of Home Assistant you will get alot of new sensors. These can be integrated in Home Assistant in different ways. I use the integrated Lovelace UI to make my UI. You can see below, how it can look like:)
 
-![HA_GUI](HA_GUI.png)
+![HA_GUI](https://github.com/jascdk/Nilan_Homeassistant/blob/master/Home%20Assistant/HA_GUI.png)
 
 ### Making External displays, that shows you the Nilan Data:
 
