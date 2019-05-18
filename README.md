@@ -14,7 +14,7 @@ Please proceed this project at your own risk!!!
 
 I used the arduino editor to upload the code to my ESP8266 (for now a wemos D1 mini). If your sketch wont compile please check if you use the arduino.json V. 5 or V.6 library. This code uses V.5 and wont build with V.6. 
 
-In the code you just need to fill in : Wifi SSID, PASSWORD and MQTT Broker IP Adress.
+For setting up your wifi and mqtt broker provide your credentials in the configuration.h file
 
 
 ### Setup the Hardware:
