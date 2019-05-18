@@ -51,7 +51,7 @@ For my integration i use a package with all my Nilan config yaml in just one fil
 
 After a restart of Home Assistant you will get alot of new sensors. These can be integrated in Home Assistant in different ways. I use the integrated Lovelace UI to make my UI. You can see below, how it can look like:)
 
-![HA_GUI](HA_GUI.png)
+![HA_GUI]()
 
 ### Making External displays, that shows you the Nilan Data:
 
