@@ -84,7 +84,7 @@ char *regnames[][MAXREGSIZE] = {
     //display1
     {"Text_1_2", "Text_3_4", "Text_5_6", "Text_7_8"},
     //display2
-    {"Text_1_2", "Text_3_4", "Text_5_6", "Text_7_8"}};
+    {"Text_9_10", "Text_11_12", "Text_13_14", "Text_15_16"}};
 
 char *getName(reqtypes type, int address)
 {
@@ -421,6 +421,30 @@ void loop()
               mqttclient.publish(mqname.c_str(), numstr);
             }
           }
+        }
+      }
+
+      // Handle text fields
+      reqtypes rrr[] = {reqdisplay1, reqdisplay2}; // put another register in this line to subscribe
+      for (int i = 0; i < 2; i++) // change value "5" to how many registers you want to subscribe to
+      {
+        reqtypes r = rrr[i];
+
+        char result = ReadModbus(regaddresses[r], regsizes[r], rsbuffer, regtypes[r] & 1);
+        if (result == 0)
+        {
+          String text = "";
+          String mqname = "ventilation/text/";
+
+          for (int i = 0; i < regsizes[r]; i++)
+          {
+              char *name = getName(r, i);
+              text += (char)(rsbuffer[i] & 0x00ff);
+              text += (char)(rsbuffer[i] >> 8);
+              mqname += (char *)name;
+
+          }
+          mqttclient.publish(mqname.c_str(), text.c_str());
         }
       }
       lastMsg = now;
