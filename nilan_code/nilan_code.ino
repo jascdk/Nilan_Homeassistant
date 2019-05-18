@@ -425,10 +425,10 @@ void loop()
       }
 
       // Handle text fields
-      reqtypes rrr[] = {reqdisplay1, reqdisplay2}; // put another register in this line to subscribe
+      reqtypes rr2[] = {reqdisplay1, reqdisplay2}; // put another register in this line to subscribe
       for (int i = 0; i < 2; i++) // change value "5" to how many registers you want to subscribe to
       {
-        reqtypes r = rrr[i];
+        reqtypes r = rr2[i];
 
         char result = ReadModbus(regaddresses[r], regsizes[r], rsbuffer, regtypes[r] & 1);
         if (result == 0)
@@ -439,10 +439,18 @@ void loop()
           for (int i = 0; i < regsizes[r]; i++)
           {
               char *name = getName(r, i);
-              text += (char)(rsbuffer[i] & 0x00ff);
-              text += (char)(rsbuffer[i] >> 8);
-              mqname += (char *)name;
 
+              if ((rsbuffer[i] & 0x00ff) == 0xDF) {
+                text += (char)0x20; // replace degree sign with space
+              } else {
+                text += (char)(rsbuffer[i] & 0x00ff);
+              }
+              if ((rsbuffer[i] >> 8) == 0xDF) {
+                text += (char)0x20; // replace degree sign with space
+              } else {
+                text += (char)(rsbuffer[i] >> 8);
+              }
+              mqname += (char *)name;
           }
           mqttclient.publish(mqname.c_str(), text.c_str());
         }
