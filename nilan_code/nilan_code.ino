@@ -3,7 +3,7 @@
 #include <ArduinoOTA.h>
 #include <ModbusMaster.h>
 #include <PubSubClient.h>
-
+#include "configuration.h"
 
 #define HOST "NilanGW-%s" // Change this to whatever you like. 
 #define MAXREGSIZE 26
@@ -13,12 +13,12 @@
 #define MODESET 1002
 #define TEMPSET 1004
 
-const char* ssid = "XX"; // Put in your SSID
-const char* password = "XX"; // Put in you SSID Password
+const char* ssid = WIFISSID;
+const char* password = WIFIPASSWORD;
 char chipid[12];
-const char* mqttserver="XX"; // Put in the IP adresse of your MQTT broker
-const char* mqttusername = NULL; // Username for the MQTT broker (NULL if no username is required)
-const char* mqttpassword = NULL; // Passowrd for the MQTT broker (NULL if no password is required)
+const char* mqttserver = MQTTSERVER;
+const char* mqttusername = MQTTUSERNAME;
+const char* mqttpassword = MQTTPASSWORD;
 WiFiServer server(80);
 WiFiClient client;
 PubSubClient mqttclient(client);
@@ -85,7 +85,7 @@ char *regnames[][MAXREGSIZE] = {
     //display1
     {"Text_1_2", "Text_3_4", "Text_5_6", "Text_7_8"},
     //display2
-    {"Text_1_2", "Text_3_4", "Text_5_6", "Text_7_8"},
+    {"Text_9_10", "Text_11_12", "Text_13_14", "Text_15_16"},
     //airbypass
     {"Airbypass.IsOpen"}};
 
@@ -428,6 +428,38 @@ void loop()
               mqttclient.publish(mqname.c_str(), numstr);
             }
           }
+        }
+      }
+
+      // Handle text fields
+      reqtypes rr2[] = {reqdisplay1, reqdisplay2}; // put another register in this line to subscribe
+      for (int i = 0; i < 2; i++) // change value "5" to how many registers you want to subscribe to
+      {
+        reqtypes r = rr2[i];
+
+        char result = ReadModbus(regaddresses[r], regsizes[r], rsbuffer, regtypes[r] & 1);
+        if (result == 0)
+        {
+          String text = "";
+          String mqname = "ventilation/text/";
+
+          for (int i = 0; i < regsizes[r]; i++)
+          {
+              char *name = getName(r, i);
+
+              if ((rsbuffer[i] & 0x00ff) == 0xDF) {
+                text += (char)0x20; // replace degree sign with space
+              } else {
+                text += (char)(rsbuffer[i] & 0x00ff);
+              }
+              if ((rsbuffer[i] >> 8) == 0xDF) {
+                text += (char)0x20; // replace degree sign with space
+              } else {
+                text += (char)(rsbuffer[i] >> 8);
+              }
+              mqname += (char *)name;
+          }
+          mqttclient.publish(mqname.c_str(), text.c_str());
         }
       }
       lastMsg = now;
