@@ -373,7 +373,7 @@ void loop()
     if (now - lastMsg > SENDINTERVAL)
     {
       reqtypes rr[] = {reqtemp, reqcontrol, reqoutput, reqspeed, reqalarm, reqinputairtemp, requser, reqdisplay}; // put another register in this line to subscribe
-      for (int i = 0; i < 8; i++) // change value "5" to how many registers you want to subscribe to
+      for (int i = 0; i < (sizeof(rr)/sizeof(rr[0])); i++)
       {
         reqtypes r = rr[i];
         char result = ReadModbus(regaddresses[r], regsizes[r], rsbuffer, regtypes[r] & 1); 
@@ -433,7 +433,7 @@ void loop()
 
       // Handle text fields
       reqtypes rr2[] = {reqdisplay1, reqdisplay2}; // put another register in this line to subscribe
-      for (int i = 0; i < 2; i++) // change value "5" to how many registers you want to subscribe to
+      for (int i = 0; i < (sizeof(rr2)/sizeof(rr2[0])); i++) // change value "5" to how many registers you want to subscribe to
       {
         reqtypes r = rr2[i];
 
