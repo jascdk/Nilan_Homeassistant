@@ -417,9 +417,10 @@ void loop()
                 itoa((rsbuffer[i]), numstr, 10);
                 break;          
               case reqtemp:
-                if (strncmp("RH", name, 2) == 0)
-                {
-                  mqname = "moist/nilan/"; // Subscribe to moisture-level
+                if (strncmp("RH", name, 2) == 0) {
+                  mqname = "ventilation/moist/"; // Subscribe to moisture-level
+                } else {
+                  mqname = "ventilation/temp/"; // Subscribe to "temp" register
                 }
                 dtostrf((rsbuffer[i] / 100.0), 5, 2, numstr);
                 break;
