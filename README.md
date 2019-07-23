@@ -41,7 +41,9 @@ Here is where it all shines - the code puts out som useful MQTT topics to monito
 
 Any MQTT-Tool (I use on my mac a tool called "MQTT Box") can be used to get the values by subscribing to :
 
-`temp/#`- This will give the temperatures from all the sensors.
+`ventilation/temp/#`- This will give the temperatures from all the sensors.
+
+`ventilation/moist/#`- This will give the humidity from the systems humidity sensor.
 
 `ventilation/#` - This gives the output of the system - fan speed etc. Remember the payloads are given in values not text.
 
