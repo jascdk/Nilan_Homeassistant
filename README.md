@@ -61,6 +61,10 @@ I have tried to make some LCD´s using some 4x16 rows displays together with an 
 
 If you wanna try it out you can use my provided .yaml code for ESP-Home above:)
 
+### SPECIAL THANKS for contribution to this project goes to: @anderskvist https://github.com/anderskvist :)
+
+
+
 
 
 
