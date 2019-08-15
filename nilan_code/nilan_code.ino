@@ -4,6 +4,12 @@
 #include <ModbusMaster.h>
 #include <PubSubClient.h>
 #include "configuration.h"
+#if SERIAL == SERIAL_SOFTWARE
+#include <SoftwareSerial.h>
+#endif
+
+#define SERIAL_SOFTWARE 1
+#define SERIAL_HARDWARE 2
 
 #define HOST "NilanGW-%s" // Change this to whatever you like. 
 #define MAXREGSIZE 26
@@ -12,6 +18,10 @@
 #define RUNSET 1001
 #define MODESET 1002
 #define TEMPSET 1004
+
+#if SERIAL == SERIAL_SOFTWARE
+SoftwareSerial SSerial(SERIAL_SOFTWARE_RX, SERIAL_SOFTWARE_TX); // RX, TX
+#endif
 
 const char* ssid = WIFISSID;
 const char* password = WIFIPASSWORD;
@@ -197,8 +207,18 @@ void setup()
   });
   ArduinoOTA.begin();
   server.begin();
-  Serial.begin(19200, SERIAL_8E1);
-  node.begin(30, Serial);
+
+  #if SERIAL == SERIAL_SOFTWARE
+    #warning Compiling for software serial
+    SSerial.begin(19200); // SERIAL_8E1
+    node.begin(30, SSerial);
+  #elif SERIAL == SERIAL_HARDWARE
+    #warning Compiling for hardware serial
+    Serial.begin(19200, SERIAL_8E1);
+    node.begin(30, Serial);
+  #else
+    #error hardware og serial serial port?
+  #endif
 
   mqttclient.setServer(mqttserver, 1883);
   mqttclient.setCallback(mqttcallback);
