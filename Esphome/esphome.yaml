@@ -23,7 +23,7 @@ api:
 ota:
 
 mqtt:
-  broker: 10.0.1.17
+  broker: 10.0.1.2
 
 # Example configuration entry
 i2c:
@@ -32,7 +32,7 @@ i2c:
   
 time:
   - platform: homeassistant
-    id: time
+    id: homeassistant_time
     
 sensor:
 
@@ -61,6 +61,7 @@ text_sensor:
 display:
   - platform: lcd_pcf8574
     dimensions: 20x4
+    id: my_display
     address: 0x27
     lambda: |-
           
@@ -68,7 +69,7 @@ display:
           it.print(4,0,"NILAN AIR");
           
           //Print the correct clock / time from Home Assistant
-          it.strftime(15,0,"%H:%M", id(time).now());
+          it.strftime(15,0,"%H:%M", id(homeassistant_time).now());
     
           //Print the actual temp blowing in 
           if (id(temp_nilan).has_state()){
@@ -85,5 +86,9 @@ display:
           //Print the fan mode 1, 2 , 3, 4
           if (id(fan_nilan).has_state()) {
           it.printf(10,2,"FAN :    %s", id(fan_nilan).state.c_str());}
-      
+
+
             
+          
+      
+
