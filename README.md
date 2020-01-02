@@ -8,6 +8,8 @@ For the original project look here: https://github.com/DanGunvald/NilanModbus
 
 Please proceed this project at your own risk!!!
 
+UPDATE 1/1-2020 : Now added a .ino file for use with a Nilan VPL15 system. Creates some others sensors over the Comfort 300 system. thanks to Martin Skeem for editing / coding :)
+
 ## Okay lets get to it!
 
 ### Installing the firmware:
