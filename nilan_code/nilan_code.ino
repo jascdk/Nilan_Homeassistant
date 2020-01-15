@@ -184,18 +184,31 @@ JsonObject &HandleRequest(JsonBuffer &jsonBuffer)
 
 void setup()
 {
+  if(USE_WIFI_LED) pinMode(WIFI_LED, OUTPUT);
   char host[64];
   sprintf(chipid, "%08X", ESP.getChipId());
   sprintf(host, HOST, chipid);
   delay(500);
-  WiFi.hostname(host);
-  ArduinoOTA.setHostname(host);
+  if(CUSTOM_HOSTNAME) 
+  {
+    WiFi.hostname(CUSTOM_HOSTNAME);
+    ArduinoOTA.setHostname(CUSTOM_HOSTNAME);
+  } else 
+  {
+    WiFi.hostname(host);
+    ArduinoOTA.setHostname(host);
+  }
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   while (WiFi.waitForConnectResult() != WL_CONNECTED)
   {
+    if(USE_WIFI_LED) digitalWrite(WIFI_LED, !digitalRead(WIFI_LED));
     delay(5000);
     ESP.restart();
+  }
+  if (WiFi.status() == WL_CONNECTED && USE_WIFI_LED)
+  {
+    digitalWrite(WIFI_LED, 0);
   }
   ArduinoOTA.onStart([]() {
   });
