@@ -9,7 +9,12 @@
 // WIFI settings
 #define WIFISSID     "XX" // Put in your SSID
 #define WIFIPASSWORD "XX" // Put in you SSID Password
+#define CUSTOM_HOSTNAME "Nilan_MQTT"  // Hostname of the ESP8266 so that it's easier to find in your DHCP range
 
+// LED settings
+#define WIFI_LED     2     // Blue led on NodeMCU
+#define USE_WIFI_LED false // if 'true', the blue led in a NodeMCU will blink during connection,
+                           // and glow solid once connected
 // MQTT settings
 #define MQTTSERVER   "XX" // Put in the IP adresse of your MQTT broker
 #define MQTTUSERNAME NULL // Username for the MQTT broker (NULL if no username is required)
