@@ -19,7 +19,6 @@
 #define MODESET 1002
 #define TEMPSET 1004
 
-
 #if SERIAL == SERIAL_SOFTWARE
 SoftwareSerial SSerial(SERIAL_SOFTWARE_RX, SERIAL_SOFTWARE_TX); // RX, TX
 #endif
@@ -318,48 +317,10 @@ bool readRequest(WiFiClient &client)
 void writeResponse(WiFiClient &client, JsonObject &json)
 {
   client.println("HTTP/1.1 200 OK");
-  // Check if anyting is set (means Nilan is connected)
-  if(json.containsKey("name"))
-  {
-    client.println("Content-Type: application/json");
-    client.println("Connection: close");
-    client.println();
-    json.prettyPrintTo(client);
-  } else // not connected, print som text
-  {
-    client.println("HTTP/1.1 200 OK"); //send new page
-    client.println("Content-Type: text/html");
-    client.println();
-    client.println("<HTML>");
-    client.println("<HEAD>");
-    client.println("<TITLE>Nilan MQTT</TITLE>");
-    client.println("</HEAD>");
-    client.println("<BODY>");
-    client.println("<H1>Nilan MQTT</H1>");
-    client.println("<hr />");
-    client.println("<br />");
-    client.println("If you see this page, it means no serial connection is established.");
-    client.println("<br />");
-    client.println("Connected to Wifi SSID: ");
-    client.println(WIFISSID);
-    client.println("<br />");
-    client.println("<ul>");
-    client.println("<li>MQTTSERVER: ");
-    client.println(MQTTSERVER);
-    client.println("</li>");
-    client.println("<li>MQTTUSERNAME: ");
-    client.println(MQTTUSERNAME);
-    client.println("</li>");
-    client.println("<li>MQTTPASSWORD: ");
-    client.println(MQTTPASSWORD);
-    client.println("</li>");
-    client.println("</ul>");
-    client.println("<br />");
-    client.println("</BODY>");
-    client.println("</HTML>");
-    delay(200); //.2 Second Delay
-    client.stop(); //Close Connection to Client
-  }
+  client.println("Content-Type: application/json");
+  client.println("Connection: close");
+  client.println();
+  json.prettyPrintTo(client);
 }
 
 char ReadModbus(uint16_t addr, uint8_t sizer, int16_t *vals, int type)
@@ -414,6 +375,11 @@ void mqttreconnect()
 
 void loop()
 {
+#ifdef DEBUG_TELNET
+  // handle Telnet connection for debugging
+  handleTelnet();
+#endif
+
   ArduinoOTA.handle();
   WiFiClient client = server.available();
   if (client)
