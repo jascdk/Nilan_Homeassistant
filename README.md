@@ -37,7 +37,12 @@ You can get some json values from the Nilan by calling to it via HTTP. Just use 
 
 `http://[device]/read/output` - This would for example give you some status of the output
 
-`http://[device]/set/[group]/[adress]/[value]`- This would make you able to send commands through HTTP
+`http://[device]/set/[group]/[adress]/[value]`- This would make you able to send commands through HTTP 
+
+e.g
+
+`http://10.0.1.16/set/control/1004/2700` This will set your temperature to 27 degrees. 
+
 
 ### Getting values by MQTT:
 
