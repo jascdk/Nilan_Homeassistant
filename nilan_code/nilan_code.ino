@@ -224,10 +224,10 @@ void setup() {
         std::unique_ptr<char[]> buf(new char[size]);
  
         configFile.readBytes(buf.get(), size);
-        DynamicJsonBuffer jsonBuffer;
-        JsonObject& json = jsonBuffer.parseObject(buf.get());
-        json.printTo(Serial);
-        if (json.success()) {
+        DynamicJsonDocument json(1024);
+        auto deserializeError = deserializeJson(json, buf.get());
+        serializeJson(json, Serial);
+          if ( ! deserializeError ) {
           Serial.println("\nparsed json");
          
           strcpy(mqtt_server, json["mqtt_server"]);
@@ -294,8 +294,7 @@ void setup() {
   //save the custom parameters to FS
   if (shouldSaveConfig) {
     Serial.println("saving config");
-    DynamicJsonBuffer jsonBuffer;
-    JsonObject& json = jsonBuffer.createObject();
+    DynamicJsonDocument json(1024);
     json["mqtt_server"] = mqtt_server;
     json["mqtt_user"] = mqtt_user;
     json["mqtt_pass"] = mqtt_pass;
@@ -305,13 +304,13 @@ void setup() {
       Serial.println("failed to open config file for writing");
     }
  
-    json.printTo(Serial);
-    json.printTo(configFile);
+    serializeJson(json, Serial);
+    serializeJson(json, configFile);
     configFile.close();
     //end save
   }
 
-  ArduinoOTA.setHostname("Nilan Gateway Test 3");
+  ArduinoOTA.setHostname("Nilan Gateway");
  
   ArduinoOTA.onStart([]() {
   });
