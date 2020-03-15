@@ -108,9 +108,9 @@ char *getName(reqtypes type, int address)
   return NULL;
 }
 
-JsonObject &HandleRequest(JsonBuffer &jsonBuffer)
+JsonObject &HandleRequest(JsonDocument doc)
 {
-  JsonObject &root = jsonBuffer.createObject();
+  JsonObject root = doc.to<JsonObject>();
   reqtypes r = reqmax;
   char type = 0;
   if (req[1] != "")
@@ -305,13 +305,13 @@ bool readRequest(WiFiClient &client)
   return false;
 }
 
-void writeResponse(WiFiClient &client, JsonObject &json)
+void writeResponse(WiFiClient &client, JsonObject root)  
 {
   client.println("HTTP/1.1 200 OK");
   client.println("Content-Type: application/json");
   client.println("Connection: close");
   client.println();
-  json.prettyPrintTo(client);
+  serializeJsonPretty(root,client);
 }
 
 char ReadModbus(uint16_t addr, uint8_t sizer, int16_t *vals, int type)
@@ -378,9 +378,9 @@ void loop()
     bool success = readRequest(client);
     if (success)
     {
-      StaticJsonBuffer<500> jsonBuffer;
-      JsonObject &json = HandleRequest(jsonBuffer); //prepareResponse(jsonBuffer);
-      writeResponse(client, json);
+      StaticJsonDocument<500> doc;
+      JsonObject root = HandleRequest(doc); 
+      writeResponse(client, root);
     }
     client.stop();
   }
