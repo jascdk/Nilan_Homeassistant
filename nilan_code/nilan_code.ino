@@ -7,22 +7,22 @@
 #if SERIAL == SERIAL_SOFTWARE
 #include <SoftwareSerial.h>
 #endif
-
+ 
 #define SERIAL_SOFTWARE 1
 #define SERIAL_HARDWARE 2
-
-#define HOST "NilanGW-%s" // Change this to whatever you like. 
+ 
+#define HOST "NilanGW-%s" // Change this to whatever you like.
 #define MAXREGSIZE 26
 #define SENDINTERVAL 30000 // normally set to 180000 milliseconds = 3 minutes. Define as you like
 #define VENTSET 1003
 #define RUNSET 1001
 #define MODESET 1002
 #define TEMPSET 1004
-
+ 
 #if SERIAL == SERIAL_SOFTWARE
 SoftwareSerial SSerial(SERIAL_SOFTWARE_RX, SERIAL_SOFTWARE_TX); // RX, TX
 #endif
-
+ 
 const char* ssid = WIFISSID;
 const char* password = WIFIPASSWORD;
 char chipid[12];
@@ -35,7 +35,7 @@ PubSubClient mqttclient(client);
 static long lastMsg = -SENDINTERVAL;
 static int16_t rsbuffer[MAXREGSIZE];
 ModbusMaster node;
-
+ 
 String req[4]; //operation, group, address, value
 enum reqtypes
 {
@@ -58,7 +58,7 @@ enum reqtypes
   reqdisplay,
   reqmax
 };
-
+ 
 String groups[] = {"temp", "alarm", "time", "control", "speed", "airtemp", "airflow", "airheat", "user", "user2", "info", "inputairtemp", "app", "output", "display1", "display2", "display"};
 byte regsizes[] = {23, 10, 6, 8, 2, 6, 2, 0, 6, 6, 14, 7, 4, 26, 4, 4, 1};
 int regaddresses[] = {200, 400, 300, 1000, 200, 1200, 1100, 0, 600, 610, 100, 1200, 0, 100, 2002, 2007, 3000};
@@ -98,7 +98,7 @@ char *regnames[][MAXREGSIZE] = {
     {"Text_9_10", "Text_11_12", "Text_13_14", "Text_15_16"},
     //airbypass
     {"AirBypass/IsOpen"}};
-
+ 
 char *getName(reqtypes type, int address)
 {
   if (address >= 0 && address <= regsizes[type])
@@ -107,8 +107,8 @@ char *getName(reqtypes type, int address)
   }
   return NULL;
 }
-
-JsonObject &HandleRequest(JsonDocument doc)
+ 
+JsonObject HandleRequest(JsonDocument& doc)
 {
   JsonObject root = doc.to<JsonObject>();
   reqtypes r = reqmax;
@@ -131,7 +131,7 @@ JsonObject &HandleRequest(JsonDocument doc)
     char result = -1;
     address = regaddresses[r];
     nums = regsizes[r];
-
+ 
     result = ReadModbus(address, nums, rsbuffer, type & 1);
     if (result == 0)
     {
@@ -179,9 +179,8 @@ JsonObject &HandleRequest(JsonDocument doc)
   }
   root["operation"] = req[0];
   root["group"] = req[1];
-  return root;
 }
-
+ 
 void setup()
 {
   if(USE_WIFI_LED) pinMode(WIFI_LED, OUTPUT);
@@ -189,17 +188,18 @@ void setup()
   sprintf(chipid, "%08X", ESP.getChipId());
   sprintf(host, HOST, chipid);
   delay(500);
-  if(CUSTOM_HOSTNAME) 
+  if(CUSTOM_HOSTNAME)
   {
     WiFi.hostname(CUSTOM_HOSTNAME);
     ArduinoOTA.setHostname(CUSTOM_HOSTNAME);
-  } else 
+  } else
   {
     WiFi.hostname(host);
     ArduinoOTA.setHostname(host);
   }
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
+ 
   while (WiFi.waitForConnectResult() != WL_CONNECTED)
   {
     if(USE_WIFI_LED) digitalWrite(WIFI_LED, !digitalRead(WIFI_LED));
@@ -220,7 +220,7 @@ void setup()
   });
   ArduinoOTA.begin();
   server.begin();
-
+ 
   #if SERIAL == SERIAL_SOFTWARE
     #warning Compiling for software serial
     SSerial.begin(19200); // SERIAL_8E1
@@ -232,11 +232,11 @@ void setup()
   #else
     #error hardware og serial serial port?
   #endif
-
+ 
   mqttclient.setServer(mqttserver, 1883);
   mqttclient.setCallback(mqttcallback);
 }
-
+ 
 void mqttcallback(char *topic, byte *payload, unsigned int length)
 {
   if (strcmp(topic, "ventilation/ventset") == 0)
@@ -277,14 +277,14 @@ void mqttcallback(char *topic, byte *payload, unsigned int length)
   }
   lastMsg = -SENDINTERVAL;
 }
-
+ 
 bool readRequest(WiFiClient &client)
 {
   req[0] = "";
   req[1] = "";
   req[2] = "";
   req[3] = "";
-
+ 
   int n = -1;
   bool readstring = false;
   while (client.connected())
@@ -310,19 +310,19 @@ bool readRequest(WiFiClient &client)
       }
     }
   }
-
+ 
   return false;
 }
-
-void writeResponse(WiFiClient &client, JsonObject root)  
+ 
+void writeResponse(WiFiClient& client, const JsonDocument& doc)  
 {
   client.println("HTTP/1.1 200 OK");
   client.println("Content-Type: application/json");
   client.println("Connection: close");
   client.println();
-  serializeJsonPretty(root,client);
+  serializeJsonPretty(doc,client);
 }
-
+ 
 char ReadModbus(uint16_t addr, uint8_t sizer, int16_t *vals, int type)
 {
   char result = 0;
@@ -352,7 +352,7 @@ char WriteModbus(uint16_t addr, int16_t val)
   result = node.writeMultipleRegisters(addr, 1);
   return result;
 }
-
+ 
 void mqttreconnect()
 {
   int numretries = 0;
@@ -372,14 +372,14 @@ void mqttreconnect()
     numretries++;
   }
 }
-
+ 
 void loop()
 {
 #ifdef DEBUG_TELNET
   // handle Telnet connection for debugging
   handleTelnet();
 #endif
-
+ 
   ArduinoOTA.handle();
   WiFiClient client = server.available();
   if (client)
@@ -388,18 +388,18 @@ void loop()
     if (success)
     {
       StaticJsonDocument<500> doc;
-      JsonObject root = HandleRequest(doc); 
-
-      writeResponse(client, root);
+      HandleRequest(doc);
+ 
+      writeResponse(client, doc);
     }
     client.stop();
   }
-
+ 
   if (!mqttclient.connected())
   {
     mqttreconnect();
   }
-
+ 
   if (mqttclient.connected())
   {
     mqttclient.loop();
@@ -410,7 +410,7 @@ void loop()
       for (int i = 0; i < (sizeof(rr)/sizeof(rr[0])); i++)
       {
         reqtypes r = rr[i];
-        char result = ReadModbus(regaddresses[r], regsizes[r], rsbuffer, regtypes[r] & 1); 
+        char result = ReadModbus(regaddresses[r], regsizes[r], rsbuffer, regtypes[r] & 1);
         if (result == 0)
         {
           for (int i = 0; i < regsizes[r]; i++)
@@ -465,23 +465,23 @@ void loop()
           }
         }
       }
-
+ 
       // Handle text fields
       reqtypes rr2[] = {reqdisplay1, reqdisplay2}; // put another register in this line to subscribe
       for (int i = 0; i < (sizeof(rr2)/sizeof(rr2[0])); i++) // change value "5" to how many registers you want to subscribe to
       {
         reqtypes r = rr2[i];
-
+ 
         char result = ReadModbus(regaddresses[r], regsizes[r], rsbuffer, regtypes[r] & 1);
         if (result == 0)
         {
           String text = "";
           String mqname = "ventilation/text/";
-
+ 
           for (int i = 0; i < regsizes[r]; i++)
           {
               char *name = getName(r, i);
-
+ 
               if ((rsbuffer[i] & 0x00ff) == 0xDF) {
                 text += (char)0x20; // replace degree sign with space
               } else {
