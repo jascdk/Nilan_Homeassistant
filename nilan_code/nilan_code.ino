@@ -35,6 +35,8 @@ PubSubClient mqttclient(client);
 static long lastMsg = -SENDINTERVAL;
 static int16_t rsbuffer[MAXREGSIZE];
 ModbusMaster node;
+
+int RELAY1 = D5; // Relay PIN - could be different pin - this is the pin used on af wemos relay shield for d1 mini
  
 String req[4]; //operation, group, address, value
 enum reqtypes
@@ -275,6 +277,18 @@ void mqttcallback(char *topic, byte *payload, unsigned int length)
       WriteModbus(TEMPSET, str.toInt());
     }
   }
+    if (strcmp(topic, "ventilation/custom/relay") == 0)
+    {
+     if (length == 4 && payload[0] >= '0' && payload[0] <= '2')
+    {
+      String str;
+      for (int i = 0; i < length; i++)
+      {
+        str += (char)payload[i];
+      }
+      digitalWrite(RELAY1, str.toInt());
+    }
+  }
   lastMsg = -SENDINTERVAL;
 }
  
@@ -497,6 +511,11 @@ void loop()
           mqttclient.publish(mqname.c_str(), text.c_str());
         }
       }
+      
+      // Custom relay
+      String mqname = "ventilation/custom/relay1";
+      mqttclient.publish(mqname.c_str(), String(digitalRead(RELAY1)).c_str());
+
       lastMsg = now;
     }
   }
