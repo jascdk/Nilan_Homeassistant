@@ -406,7 +406,7 @@ void loop()
     long now = millis();
     if (now - lastMsg > SENDINTERVAL)
     {
-      reqtypes rr[] = {reqtemp, reqcontrol, reqoutput, reqspeed, reqalarm, reqinputairtemp, requser, reqdisplay}; // put another register in this line to subscribe
+      reqtypes rr[] = {reqtemp, reqcontrol, reqoutput, reqspeed, reqalarm, reqinputairtemp, requser, reqdisplay, reqinfo}; // put another register in this line to subscribe
       for (int i = 0; i < (sizeof(rr)/sizeof(rr[0])); i++)
       {
         reqtypes r = rr[i];
@@ -449,7 +449,11 @@ void loop()
               case requser:
                 mqname = "ventilation/user/"; // Subscribe to the "user" register
                 itoa((rsbuffer[i]), numstr, 10);
-                break;          
+                break;
+              case reqinfo:
+                mqname = "ventilation/info/"; // Subscribe to the "info" register
+                itoa((rsbuffer[i]), numstr, 10);
+                break;            
               case reqtemp:
                 if (strncmp("RH", name, 2) == 0) {
                   mqname = "ventilation/moist/"; // Subscribe to moisture-level
@@ -468,7 +472,7 @@ void loop()
  
       // Handle text fields
       reqtypes rr2[] = {reqdisplay1, reqdisplay2}; // put another register in this line to subscribe
-      for (int i = 0; i < (sizeof(rr2)/sizeof(rr2[0])); i++) // change value "5" to how many registers you want to subscribe to
+      for (int i = 0; i < (sizeof(rr2)/sizeof(rr2[0])); i++) 
       {
         reqtypes r = rr2[i];
  
