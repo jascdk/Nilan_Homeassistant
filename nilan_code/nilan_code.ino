@@ -36,6 +36,10 @@ static long lastMsg = -SENDINTERVAL;
 static int16_t rsbuffer[MAXREGSIZE];
 ModbusMaster node;
  
+int POWERLED = D6; // Constant on. Will be off during ModBus read/write.
+int WIFILED = D7; // On when wifi connected, off when wifi disconnected.
+int MQTTLED = D8; // On when mqtt connected, off when mqtt disconnected. Will be off during MQTT read/write.
+
 String req[4]; //operation, group, address, value
 enum reqtypes
 {
@@ -183,6 +187,16 @@ JsonObject HandleRequest(JsonDocument& doc)
  
 void setup()
 {
+  // setup LEDs
+  pinMode(POWERLED, OUTPUT);
+  pinMode(WIFILED, OUTPUT);
+  pinMode(MQTTLED, OUTPUT);
+
+  // initial LED state
+  digitalWrite(POWERLED, HIGH);
+  digitalWrite(WIFILED, LOW);
+  digitalWrite(MQTTLED, LOW);
+ 
   if(USE_WIFI_LED) pinMode(WIFI_LED, OUTPUT);
   char host[64];
   sprintf(chipid, "%08X", ESP.getChipId());
@@ -276,6 +290,7 @@ void mqttcallback(char *topic, byte *payload, unsigned int length)
     }
   }
   lastMsg = -SENDINTERVAL;
+  digitalWrite(MQTTLED, HIGH);
 }
  
 bool readRequest(WiFiClient &client)
@@ -325,6 +340,7 @@ void writeResponse(WiFiClient& client, const JsonDocument& doc)
  
 char ReadModbus(uint16_t addr, uint8_t sizer, int16_t *vals, int type)
 {
+  digitalWrite(POWERLED, LOW);
   char result = 0;
   switch (type)
   {
@@ -341,15 +357,19 @@ char ReadModbus(uint16_t addr, uint8_t sizer, int16_t *vals, int type)
     {
       vals[j] = node.getResponseBuffer(j);
     }
+      digitalWrite(POWERLED, HIGH);
     return result;
   }
   return result;
 }
 char WriteModbus(uint16_t addr, int16_t val)
 {
+  digitalWrite(POWERLED, LOW);
   node.setTransmitBuffer(0, val);
   char result = 0;
   result = node.writeMultipleRegisters(addr, 1);
+  
+  digitalWrite(POWERLED, HIGH);
   return result;
 }
  
@@ -382,6 +402,13 @@ void loop()
  
   ArduinoOTA.handle();
   WiFiClient client = server.available();
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    digitalWrite(WIFILED, HIGH);
+  } else {
+    digitalWrite(WIFILED, LOW);
+  }
+ 
   if (client)
   {
     bool success = readRequest(client);
@@ -397,15 +424,18 @@ void loop()
  
   if (!mqttclient.connected())
   {
+    digitalWrite(MQTTLED, LOW);
     mqttreconnect();
   }
  
   if (mqttclient.connected())
   {
+    digitalWrite(MQTTLED, HIGH);
     mqttclient.loop();
     long now = millis();
     if (now - lastMsg > SENDINTERVAL)
     {
+      digitalWrite(MQTTLED, LOW);
       reqtypes rr[] = {reqtemp, reqcontrol, reqoutput, reqspeed, reqalarm, reqinputairtemp, requser, reqdisplay, reqinfo}; // put another register in this line to subscribe
       for (int i = 0; i < (sizeof(rr)/sizeof(rr[0])); i++)
       {
@@ -502,6 +532,7 @@ void loop()
         }
       }
       lastMsg = now;
+      digitalWrite(MQTTLED, HIGH);
     }
   }
 }
