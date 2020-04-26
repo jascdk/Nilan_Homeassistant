@@ -1,14 +1,15 @@
 /* 
  *  It should not be necessary to change anything else than in this file to suit your needs.
  *  If you need to change other things, consider adding to this file and submit a pull request :)
+ *  Remember that all password, ssid´s and so on are CASE SENSITIVE !
  */
 
 // Change config to verify that project has been configured
-#define CONFIGURED 0
+#define CONFIGURED 0 // Change this to "1" when you completed your config and begin upload
 
 // WIFI settings
-#define WIFISSID     "XX" // Put in your SSID
-#define WIFIPASSWORD "XX" // Put in you SSID Password
+#define WIFISSID     "XX" // Put in your SSID 
+#define WIFIPASSWORD "XX" // Put in you SSID Password 
 #define CUSTOM_HOSTNAME "Nilan_MQTT"  // Hostname of the ESP8266 so that it's easier to find in your DHCP range
 
 // LED settings
