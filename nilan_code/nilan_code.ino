@@ -1,3 +1,28 @@
+/**
+  Nilan Modbus firmware for D1 Mini (ESP8266) together with a TTL to RS485 Converter https://www.aliexpress.com/item/32836213346.html?spm=a2g0s.9042311.0.0.27424c4dqnr5i7
+  
+  Written by Dan Gunvald
+    https://github.com/DanGunvald/NilanModbus
+
+  Modified to use with Home Assistant by Anders Kvist, Jacob Scherrebeck and other great people :) 
+    https://github.com/anderskvist/Nilan_Homeassistant
+    https://github.com/jascdk/Nilan_Homeassistant
+    
+  Read from a Nilan Air Vent System (Danish Brand) using a Wemos D1
+  Mini (or other ESP8266-based board) and report the values to an MQTT
+  broker. Then use it for your home-automation system like Home Assistant.
+  
+  External dependencies. Install using the Arduino library manager:
+  
+     "Arduino JSON V6 by Benoît Blanchon https://github.com/bblanchon/ArduinoJson - IMPORTANT - Use latest V.6 !!! This code won´t compile with V.5 
+     "ModbusMaster by Doc Walker https://github.com/4-20ma/ModbusMaster
+     "PubSubClient" by Nick O'Leary https://github.com/knolleary/pubsubclient
+     
+  Porject inspired by https://github.com/DanGunvald/NilanModbus
+
+  Join this Danish Facebook Page for inspiration :) https://www.facebook.com/groups/667765647316443/
+*/
+
 #include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
 #include <ArduinoOTA.h>
@@ -7,22 +32,23 @@
 #if SERIAL == SERIAL_SOFTWARE
 #include <SoftwareSerial.h>
 #endif
- 
+
 #define SERIAL_SOFTWARE 1
 #define SERIAL_HARDWARE 2
- 
-#define HOST "NilanGW-%s" // Change this to whatever you like.
+
+#define HOST "NilanGW-%s" // Change this to whatever you like. 
 #define MAXREGSIZE 26
-#define SENDINTERVAL 30000 // normally set to 180000 milliseconds = 3 minutes. Define as you like
+#define SENDINTERVAL 3000 // normally set to 180000 milliseconds = 3 minutes. Define as you like
 #define VENTSET 1003
 #define RUNSET 1001
 #define MODESET 1002
 #define TEMPSET 1004
- 
-#if SERIAL == SERIAL_SOFTWARE
+#define PROGRAMSET 500
+
+#if SERIAL == SERIAL_SOFTWAR
 SoftwareSerial SSerial(SERIAL_SOFTWARE_RX, SERIAL_SOFTWARE_TX); // RX, TX
 #endif
- 
+
 const char* ssid = WIFISSID;
 const char* password = WIFIPASSWORD;
 char chipid[12];
@@ -35,7 +61,9 @@ PubSubClient mqttclient(client);
 static long lastMsg = -SENDINTERVAL;
 static int16_t rsbuffer[MAXREGSIZE];
 ModbusMaster node;
- 
+
+
+
 String req[4]; //operation, group, address, value
 enum reqtypes
 {
@@ -47,6 +75,7 @@ enum reqtypes
   reqairtemp,
   reqairflow,
   reqairheat,
+  reqprogram,
   requser,
   requser2,
   reqinfo,
@@ -59,10 +88,10 @@ enum reqtypes
   reqmax
 };
  
-String groups[] = {"temp", "alarm", "time", "control", "speed", "airtemp", "airflow", "airheat", "user", "user2", "info", "inputairtemp", "app", "output", "display1", "display2", "display"};
-byte regsizes[] = {23, 10, 6, 8, 2, 6, 2, 0, 6, 6, 14, 7, 4, 26, 4, 4, 1};
-int regaddresses[] = {200, 400, 300, 1000, 200, 1200, 1100, 0, 600, 610, 100, 1200, 0, 100, 2002, 2007, 3000};
-byte regtypes[] = {8, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 2, 1, 4, 4, 8};
+String groups[] = {"temp", "alarm", "time", "control", "speed", "airtemp", "airflow", "airheat", "program", "user", "user2", "info", "inputairtemp", "app", "output", "display1", "display2", "display"};
+byte regsizes[] = {23, 10, 6, 8, 2, 6, 2, 0, 1, 6, 6, 14, 7, 4, 26, 4, 4, 1};
+int regaddresses[] = {200, 400, 300, 1000, 200, 1200, 1100, 0, 500, 600, 610, 100, 1200, 0, 100, 2002, 2007, 3000};
+byte regtypes[] = {8, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 2, 1, 4, 4, 8};
 char *regnames[][MAXREGSIZE] = {
     //temp
     {"T0_Controller", NULL, NULL, "T3_Exhaust", "T4_Outlet", NULL, NULL, "T7_Inlet", "T8_Outdoor", NULL, NULL, NULL, NULL, NULL, NULL, "T15_Room", NULL, NULL, NULL, NULL, NULL, "RH", NULL},
@@ -80,6 +109,8 @@ char *regnames[][MAXREGSIZE] = {
     {"AirExchMode", "CoolVent"},
     //airheat
     {},
+    //program
+    {"Program"},
     //program.user
     {"UserFuncAct", "UserFuncSet", "UserTimeSet", "UserVentSet", "UserTempSet", "UserOffsSet"},
     //program.user2
@@ -98,7 +129,7 @@ char *regnames[][MAXREGSIZE] = {
     {"Text_9_10", "Text_11_12", "Text_13_14", "Text_15_16"},
     //airbypass
     {"AirBypass/IsOpen"}};
- 
+    
 char *getName(reqtypes type, int address)
 {
   if (address >= 0 && address <= regsizes[type])
@@ -107,7 +138,7 @@ char *getName(reqtypes type, int address)
   }
   return NULL;
 }
- 
+
 JsonObject HandleRequest(JsonDocument& doc)
 {
   JsonObject root = doc.to<JsonObject>();
@@ -131,10 +162,11 @@ JsonObject HandleRequest(JsonDocument& doc)
     char result = -1;
     address = regaddresses[r];
     nums = regsizes[r];
- 
+
     result = ReadModbus(address, nums, rsbuffer, type & 1);
     if (result == 0)
     {
+      root["status"] = "Modbus connection OK";
       for (int i = 0; i < nums; i++)
       {
         char *name = getName(r, i);
@@ -158,6 +190,9 @@ JsonObject HandleRequest(JsonDocument& doc)
         }
       }
     }
+    else {
+      root["status"] = "Modbus connection failed";
+    }
     root["requestaddress"] = address;
     root["requestnum"] = nums;
   }
@@ -179,36 +214,23 @@ JsonObject HandleRequest(JsonDocument& doc)
   }
   root["operation"] = req[0];
   root["group"] = req[1];
+  return root;
 }
- 
+
 void setup()
 {
-  if(USE_WIFI_LED) pinMode(WIFI_LED, OUTPUT);
   char host[64];
   sprintf(chipid, "%08X", ESP.getChipId());
   sprintf(host, HOST, chipid);
   delay(500);
-  if(CUSTOM_HOSTNAME)
-  {
-    WiFi.hostname(CUSTOM_HOSTNAME);
-    ArduinoOTA.setHostname(CUSTOM_HOSTNAME);
-  } else
-  {
-    WiFi.hostname(host);
-    ArduinoOTA.setHostname(host);
-  }
+  WiFi.hostname(host);
+  ArduinoOTA.setHostname(host);
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
- 
   while (WiFi.waitForConnectResult() != WL_CONNECTED)
   {
-    if(USE_WIFI_LED) digitalWrite(WIFI_LED, !digitalRead(WIFI_LED));
     delay(5000);
     ESP.restart();
-  }
-  if (WiFi.status() == WL_CONNECTED && USE_WIFI_LED)
-  {
-    digitalWrite(WIFI_LED, 0);
   }
   ArduinoOTA.onStart([]() {
   });
@@ -220,7 +242,7 @@ void setup()
   });
   ArduinoOTA.begin();
   server.begin();
- 
+
   #if SERIAL == SERIAL_SOFTWARE
     #warning Compiling for software serial
     SSerial.begin(19200); // SERIAL_8E1
@@ -232,11 +254,11 @@ void setup()
   #else
     #error hardware og serial serial port?
   #endif
- 
+
   mqttclient.setServer(mqttserver, 1883);
   mqttclient.setCallback(mqttcallback);
 }
- 
+
 void mqttcallback(char *topic, byte *payload, unsigned int length)
 {
   if (strcmp(topic, "ventilation/ventset") == 0)
@@ -275,16 +297,24 @@ void mqttcallback(char *topic, byte *payload, unsigned int length)
       WriteModbus(TEMPSET, str.toInt());
     }
   }
+   if (strcmp(topic, "ventilation/programset") == 0)
+  {
+    if (length == 1 && payload[0] >= '0' && payload[0] <= '4')
+    {
+      int16_t program = payload[0] - '0';
+      WriteModbus(PROGRAMSET, program);
+    }
+   } 
   lastMsg = -SENDINTERVAL;
 }
- 
+
 bool readRequest(WiFiClient &client)
 {
   req[0] = "";
   req[1] = "";
   req[2] = "";
   req[3] = "";
- 
+
   int n = -1;
   bool readstring = false;
   while (client.connected())
@@ -310,10 +340,10 @@ bool readRequest(WiFiClient &client)
       }
     }
   }
- 
+
   return false;
 }
- 
+
 void writeResponse(WiFiClient& client, const JsonDocument& doc)  
 {
   client.println("HTTP/1.1 200 OK");
@@ -322,7 +352,7 @@ void writeResponse(WiFiClient& client, const JsonDocument& doc)
   client.println();
   serializeJsonPretty(doc,client);
 }
- 
+
 char ReadModbus(uint16_t addr, uint8_t sizer, int16_t *vals, int type)
 {
   char result = 0;
@@ -352,7 +382,7 @@ char WriteModbus(uint16_t addr, int16_t val)
   result = node.writeMultipleRegisters(addr, 1);
   return result;
 }
- 
+
 void mqttreconnect()
 {
   int numretries = 0;
@@ -364,6 +394,7 @@ void mqttreconnect()
       mqttclient.subscribe("ventilation/modeset");
       mqttclient.subscribe("ventilation/runset");
       mqttclient.subscribe("ventilation/tempset");
+      mqttclient.subscribe("ventilation/programset");
     }
     else
     {
@@ -372,14 +403,14 @@ void mqttreconnect()
     numretries++;
   }
 }
- 
+
 void loop()
 {
 #ifdef DEBUG_TELNET
   // handle Telnet connection for debugging
   handleTelnet();
 #endif
- 
+
   ArduinoOTA.handle();
   WiFiClient client = server.available();
   if (client)
@@ -387,32 +418,33 @@ void loop()
     bool success = readRequest(client);
     if (success)
     {
-      StaticJsonDocument<500> doc;
+      StaticJsonDocument<1000> doc;
       HandleRequest(doc);
  
       writeResponse(client, doc);
     }
     client.stop();
   }
- 
+
   if (!mqttclient.connected())
   {
     mqttreconnect();
   }
- 
+
   if (mqttclient.connected())
   {
     mqttclient.loop();
     long now = millis();
     if (now - lastMsg > SENDINTERVAL)
     {
-      reqtypes rr[] = {reqtemp, reqcontrol, reqoutput, reqspeed, reqalarm, reqinputairtemp, requser, reqdisplay, reqinfo}; // put another register in this line to subscribe
+       reqtypes rr[] = {reqtemp, reqcontrol, reqtime, reqoutput, reqspeed, reqalarm, reqinputairtemp, reqprogram, requser, reqdisplay, reqinfo}; // put another register in this line to subscribe
       for (int i = 0; i < (sizeof(rr)/sizeof(rr[0])); i++)
       {
         reqtypes r = rr[i];
-        char result = ReadModbus(regaddresses[r], regsizes[r], rsbuffer, regtypes[r] & 1);
+        char result = ReadModbus(regaddresses[r], regsizes[r], rsbuffer, regtypes[r] & 1); 
         if (result == 0)
         {
+          mqttclient.publish("ventilation/error/modbus/", "0"); //no error when connecting through modbus
           for (int i = 0; i < regsizes[r]; i++)
           {
             char *name = getName(r, i);
@@ -424,6 +456,10 @@ void loop()
               {
               case reqcontrol:
                 mqname = "ventilation/control/"; // Subscribe to the "control" register
+                itoa((rsbuffer[i]), numstr, 10);
+                break;
+              case reqtime:
+                mqname = "ventilation/time/"; // Subscribe to the "output" register
                 itoa((rsbuffer[i]), numstr, 10);
                 break;
               case reqoutput:
@@ -445,15 +481,19 @@ void loop()
               case reqinputairtemp:
                 mqname = "ventilation/inputairtemp/"; // Subscribe to the "inputairtemp" register
                 itoa((rsbuffer[i]), numstr, 10);
-                break;
+                break;    
+              case reqprogram:
+                mqname = "ventilation/weekprogram/"; // Subscribe to the "week program" register
+                itoa((rsbuffer[i]), numstr, 10);
+                break;     
               case requser:
                 mqname = "ventilation/user/"; // Subscribe to the "user" register
                 itoa((rsbuffer[i]), numstr, 10);
-                break;
+                break;         
               case reqinfo:
                 mqname = "ventilation/info/"; // Subscribe to the "info" register
                 itoa((rsbuffer[i]), numstr, 10);
-                break;            
+                break;         
               case reqtemp:
                 if (strncmp("RH", name, 2) == 0) {
                   mqname = "ventilation/moist/"; // Subscribe to moisture-level
@@ -468,24 +508,27 @@ void loop()
             }
           }
         }
+        else {
+          mqttclient.publish("ventilation/error/modbus/", "1"); //error when connecting through modbus
+        }       
       }
- 
+
       // Handle text fields
       reqtypes rr2[] = {reqdisplay1, reqdisplay2}; // put another register in this line to subscribe
       for (int i = 0; i < (sizeof(rr2)/sizeof(rr2[0])); i++) 
       {
         reqtypes r = rr2[i];
- 
+
         char result = ReadModbus(regaddresses[r], regsizes[r], rsbuffer, regtypes[r] & 1);
         if (result == 0)
         {
           String text = "";
           String mqname = "ventilation/text/";
- 
+
           for (int i = 0; i < regsizes[r]; i++)
           {
               char *name = getName(r, i);
- 
+
               if ((rsbuffer[i] & 0x00ff) == 0xDF) {
                 text += (char)0x20; // replace degree sign with space
               } else {
