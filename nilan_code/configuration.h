@@ -11,6 +11,10 @@
 #define WIFIPASSWORD "XX" // Put in you SSID Password
 #define CUSTOM_HOSTNAME "Nilan_MQTT"  // Hostname of the ESP8266 so that it's easier to find in your DHCP range
 
+// Relay PINS
+#define RELAY1_PIN D5
+#define RELAY2_PIN D6
+
 // LED settings
 #define WIFI_LED     2     // Blue led on NodeMCU
 #define USE_WIFI_LED false // if 'true', the blue led in a NodeMCU will blink during connection,
