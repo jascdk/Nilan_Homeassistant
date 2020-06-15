@@ -3,7 +3,7 @@
  
   Written by Dan Gunvald
     https://github.com/DanGunvald/NilanModbus
-  Modified to use with Home Assistant by Anders Kvist, Jacob Scherrebeck and other great people :)
+  Modified to use with Home Assistant by Anders Kvist, Kenn Dyrvig, Jacob Scherrebeck & other great people :)
     https://github.com/anderskvist/Nilan_Homeassistant
     https://github.com/jascdk/Nilan_Homeassistant
    
@@ -20,39 +20,46 @@
   Project inspired by https://github.com/DanGunvald/NilanModbus
   Join this Danish Facebook Page for inspiration :) https://www.facebook.com/groups/667765647316443/
 */
- 
+
+#include <FS.h>          // this needs to be first, or it all crashes and burns...
+#include <LittleFS.h>
+#include <WiFiManager.h> // https://github.com/tzapu/wm
+#include <DNSServer.h>
+#include <ESP8266WebServer.h>
+
 #include <ArduinoJson.h>
 #include <ESP8266WiFi.h>
 #include <ArduinoOTA.h>
 #include <ModbusMaster.h>
 #include <PubSubClient.h>
-#include "configuration.h"
-#if SERIAL == SERIAL_SOFTWARE
-#include <SoftwareSerial.h>
-#endif
- 
-#define SERIAL_SOFTWARE 1
-#define SERIAL_HARDWARE 2
- 
-#define HOST "NilanGW-%s" // Change this to whatever you like.
+
+#include <DoubleResetDetector.h>
+
+#include <Ticker.h>
+Ticker ticker;
+
 #define MAXREGSIZE 26
-#define SENDINTERVAL 3000 // normally set to 180000 milliseconds = 3 minutes. Define as you like
+#define SENDINTERVAL 30000 // normally set to 180000 milliseconds = 3 minutes. Define as you like
 #define VENTSET 1003
 #define RUNSET 1001
 #define MODESET 1002
 #define TEMPSET 1004
 #define PROGRAMSET 500
- 
-#if SERIAL == SERIAL_SOFTWARE
-SoftwareSerial SSerial(SERIAL_SOFTWARE_RX, SERIAL_SOFTWARE_TX); // RX, TX
-#endif
- 
-const char *ssid = WIFISSID;
-const char *password = WIFIPASSWORD;
+
+/*------------------------------------------------------------------------------ 
+DOUBLE RESET DETECTOR
+------------------------------------------------------------------------------*/
+
+// Number of seconds after reset during which a
+// subseqent reset will be considered a double reset.
+#define DRD_TIMEOUT 10
+
+// RTC Memory Address for the DoubleResetDetector to use
+#define DRD_ADDRESS 0
+
+DoubleResetDetector drd(DRD_TIMEOUT, DRD_ADDRESS);
+
 char chipid[12];
-const char *mqttserver = MQTTSERVER;
-const char *mqttusername = MQTTUSERNAME;
-const char *mqttpassword = MQTTPASSWORD;
 WiFiServer server(80);
 WiFiClient client;
 PubSubClient mqttclient(client);
@@ -61,7 +68,7 @@ static int16_t rsbuffer[MAXREGSIZE];
 ModbusMaster node;
 char *usersetTopic1 = "ventilation/relay/userset";  // bruger valg
 char *usersetTopic2 = "ventilation/relay/userset2"; // bruger valg
- 
+
 String req[4]; //operation, group, address, value
 enum reqtypes
 {
@@ -85,7 +92,7 @@ enum reqtypes
   reqdisplay,
   reqmax
 };
- 
+
 String groups[] = {"temp", "alarm", "time", "control", "speed", "airtemp", "airflow", "airheat", "program", "user", "user2", "info", "inputairtemp", "app", "output", "display1", "display2", "display"};
 byte regsizes[] = {23, 10, 6, 8, 2, 6, 2, 0, 1, 6, 6, 14, 7, 4, 26, 4, 4, 1};
 int regaddresses[] = {200, 400, 300, 1000, 200, 1200, 1100, 0, 500, 600, 610, 100, 1200, 0, 100, 2002, 2007, 3000};
@@ -127,7 +134,7 @@ char *regnames[][MAXREGSIZE] = {
     {"Text_9_10", "Text_11_12", "Text_13_14", "Text_15_16"},
     //airbypass
     {"AirBypass/IsOpen"}};
- 
+
 char *getName(reqtypes type, int address)
 {
   if (address >= 0 && address <= regsizes[type])
@@ -136,7 +143,7 @@ char *getName(reqtypes type, int address)
   }
   return NULL;
 }
- 
+
 JsonObject HandleRequest(JsonDocument &doc)
 {
   JsonObject root = doc.to<JsonObject>();
@@ -160,7 +167,7 @@ JsonObject HandleRequest(JsonDocument &doc)
     char result = -1;
     address = regaddresses[r];
     nums = regsizes[r];
- 
+
     result = ReadModbus(address, nums, rsbuffer, type & 1);
     if (result == 0)
     {
@@ -215,25 +222,189 @@ JsonObject HandleRequest(JsonDocument &doc)
   root["group"] = req[1];
   return root;
 }
- 
+
+void tick()
+{
+  //toggle state
+  int state = digitalRead(BUILTIN_LED); // get the current state of GPIO1 pin
+  digitalWrite(BUILTIN_LED, !state);    // set pin to the opposite state
+}
+
+//gets called when wm enters configuration mode
+void configModeCallback (WiFiManager *myWiFiManager)
+{
+  Serial.println("Entered config mode");
+  Serial.println(WiFi.softAPIP());
+  //if you used auto generated SSID, print it
+  Serial.println(myWiFiManager->getConfigPortalSSID());
+  //entered config mode, make led toggle faster
+  ticker.attach(0.2, tick);
+}
+
+//define your default values here, if there are different values in config.json, they are overwritten.
+char mqtt_server[40];
+char mqtt_port[6] = "1883";
+char mqtt_user[40];
+char mqtt_pass[40];
+
+//flag for saving data
+bool shouldSaveConfig = false;
+
+//callback notifying us of the need to save config
+void saveConfigCallback()
+{
+  Serial.println("Should save config");
+  shouldSaveConfig = true;
+}
+
+void setupLittleFS()
+{
+  //clean FS, for testing
+  //LittleFS.format();
+
+  //read configuration from FS json
+  Serial.println("mounting FS...");
+
+  if (LittleFS.begin())
+  {
+    Serial.println("mounted file system");
+    if (LittleFS.exists("/config.json"))
+    {
+      //file exists, reading and loading
+      Serial.println("reading config file");
+      File configFile = LittleFS.open("/config.json", "r");
+      if (configFile)
+      {
+        Serial.println("opened config file");
+        size_t size = configFile.size();
+        // Allocate a buffer to store contents of the file.
+        std::unique_ptr<char[]> buf(new char[size]);
+
+        configFile.readBytes(buf.get(), size);
+        DynamicJsonDocument json(1024);
+        auto deserializeError = deserializeJson(json, buf.get());
+        //json.printTo(Serial);
+        serializeJson(json, Serial);
+        //if (json.success()) {
+        if (!deserializeError)
+        {
+          Serial.println("\nparsed json");
+
+          strcpy(mqtt_server, json["mqtt_server"]);
+          strcpy(mqtt_port, json["mqtt_port"]);
+          strcpy(mqtt_user, json["mqtt_user"]);
+          strcpy(mqtt_pass, json["mqtt_pass"]);
+        }
+        else
+        {
+          Serial.println("failed to load json config");
+        }
+      }
+    }
+  }
+  else
+  {
+    Serial.println("failed to mount FS");
+  }
+  //end read
+}
+
 void setup()
 {
-  pinMode(RELAY1_PIN, OUTPUT); // bruger valg
-  digitalWrite(RELAY1_PIN, LOW);
-  pinMode(RELAY2_PIN, OUTPUT); // bruger valg
-  digitalWrite(RELAY2_PIN, LOW);
-  char host[64];
-  sprintf(chipid, "%08X", ESP.getChipId());
-  sprintf(host, HOST, chipid);
-  delay(500);
-  WiFi.hostname(host);
-  ArduinoOTA.setHostname(host);
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-  while (WiFi.waitForConnectResult() != WL_CONNECTED)
+  pinMode(D6, OUTPUT); // bruger valg
+  digitalWrite(D6, LOW);
+  pinMode(D7, OUTPUT); // bruger valg
+  digitalWrite(D7, LOW);
+  pinMode(LED_BUILTIN, OUTPUT);
+  // start ticker with 0.5 because we start in AP mode and try to connect
+  ticker.attach(0.6, tick);
+  ArduinoOTA.setHostname("NILAN GATEWAY");
+  setupLittleFS();
+
+  // wm, Local intialization. Once its business is done, there is no need to keep it around
+  WiFiManager wm;
+
+  //wm.resetSettings();
+  
+  //set config save notify callback
+  wm.setSaveConfigCallback(saveConfigCallback);
+
+  //set config save notify callback
+  wm.setAPCallback(configModeCallback);
+
+  // invert theme, dark
+  wm.setClass("invert");
+
+  // setup custom parameters
+  //
+  // The extra parameters to be configured (can be either global or just in the setup)
+  // After connecting, parameter.getValue() will get you the configured value
+  // id/name placeholder/prompt default length
+  WiFiManagerParameter custom_mqtt_server("server", "mqtt server", mqtt_server, 40);
+  WiFiManagerParameter custom_mqtt_port("port", "mqtt port", mqtt_port, 6);
+  WiFiManagerParameter custom_mqtt_user("user", "mqtt_user", mqtt_user, 40);
+  WiFiManagerParameter custom_mqtt_pass("pass", "mqtt_pass", mqtt_pass, 40);
+
+  //add all your parameters here
+  wm.addParameter(&custom_mqtt_server);
+  wm.addParameter(&custom_mqtt_port);
+  wm.addParameter(&custom_mqtt_user);
+  wm.addParameter(&custom_mqtt_pass);
+
+  // Detect Double reset to initiate the Captive portal for configuration
+  if (drd.detectDoubleReset())
   {
-    delay(5000);
-    ESP.restart();
+    //Serial.println("Double Reset Detected");
+    wm.startConfigPortal("Nilan Gateway");
+  }
+  else
+  {
+    //Serial.println("No Double Reset Detected");
+    if (!wm.autoConnect("Nilan Gateway"))
+    {
+      //Serial.println("failed to connect and hit timeout");
+      delay(3000);
+      //reset and try again, or maybe put it to deep sleep
+      ESP.reset();
+      delay(5000);
+    }
+    ticker.detach();
+    //keep LED on
+    digitalWrite(LED_BUILTIN, LOW);
+  }
+
+  //if you get here you have connected to the WiFi
+  //Serial.println("connected...yeey :)");
+
+  //read updated parameters
+  strcpy(mqtt_server, custom_mqtt_server.getValue());
+  strcpy(mqtt_port, custom_mqtt_port.getValue());
+  strcpy(mqtt_user, custom_mqtt_user.getValue());
+  strcpy(mqtt_pass, custom_mqtt_pass.getValue());
+  //save the custom parameters to FS
+  if (shouldSaveConfig)
+  {
+    Serial.println("saving config");
+    DynamicJsonDocument json(1024);
+    //JsonObject json = jsonDocument.createObject();
+    json["mqtt_server"] = mqtt_server;
+    json["mqtt_port"] = mqtt_port;
+    json["mqtt_user"] = mqtt_user;
+    json["mqtt_pass"] = mqtt_pass;
+
+    File configFile = LittleFS.open("/config.json", "w");
+    if (!configFile)
+    {
+      Serial.println("failed to open config file for writing");
+    }
+
+    //json.printTo(Serial);
+    serializeJson(json, Serial);
+    //json.printTo(configFile);
+    serializeJson(json, configFile);
+    configFile.close();
+    //end save
+    shouldSaveConfig = false;
   }
   ArduinoOTA.onStart([]() {
   });
@@ -244,24 +415,15 @@ void setup()
   ArduinoOTA.onError([](ota_error_t error) {
   });
   ArduinoOTA.begin();
-  server.begin();
- 
-#if SERIAL == SERIAL_SOFTWARE
-#warning Compiling for software serial
-  SSerial.begin(19200); // SERIAL_8E1
-  node.begin(30, SSerial);
-#elif SERIAL == SERIAL_HARDWARE
-#warning Compiling for hardware serial
+
   Serial.begin(19200, SERIAL_8E1);
   node.begin(30, Serial);
-#else
-#error hardware og serial serial port?
-#endif
- 
-  mqttclient.setServer(mqttserver, 1883);
+
+  server.begin();
+  mqttclient.setServer(mqtt_server, 1883);
   mqttclient.setCallback(mqttcallback);
 }
- 
+
 void mqttcallback(char *topic, byte *payload, unsigned int length)
 {
   if (strcmp(topic, "ventilation/ventset") == 0)
@@ -292,12 +454,12 @@ void mqttcallback(char *topic, byte *payload, unsigned int length)
   {
     if (payload[0] == '1')
     {
-      digitalWrite(RELAY1_PIN, HIGH);
+      digitalWrite(D6, HIGH);
       mqttclient.publish("ventilation/relay/userset", "on");
     }
     else if (payload[0] == '0')
     {
-      digitalWrite(RELAY1_PIN, LOW);
+      digitalWrite(D6, LOW);
       mqttclient.publish("ventilation/relay/userset", "off");
     }
   }
@@ -305,12 +467,12 @@ void mqttcallback(char *topic, byte *payload, unsigned int length)
   {
     if (payload[0] == '1')
     {
-      digitalWrite(RELAY2_PIN, HIGH);
+      digitalWrite(D7, HIGH);
       mqttclient.publish("ventilation/relay/userset2", "on");
     }
     else if (payload[0] == '0')
     {
-      digitalWrite(RELAY2_PIN, LOW);
+      digitalWrite(D7, LOW);
       mqttclient.publish("ventilation/relay/userset2", "off");
     }
   }
@@ -336,14 +498,14 @@ void mqttcallback(char *topic, byte *payload, unsigned int length)
   }
   lastMsg = -SENDINTERVAL;
 }
- 
+
 bool readRequest(WiFiClient &client)
 {
   req[0] = "";
   req[1] = "";
   req[2] = "";
   req[3] = "";
- 
+
   int n = -1;
   bool readstring = false;
   while (client.connected())
@@ -369,10 +531,10 @@ bool readRequest(WiFiClient &client)
       }
     }
   }
- 
+
   return false;
 }
- 
+
 void writeResponse(WiFiClient &client, const JsonDocument &doc)
 {
   client.println("HTTP/1.1 200 OK");
@@ -381,7 +543,7 @@ void writeResponse(WiFiClient &client, const JsonDocument &doc)
   client.println();
   serializeJsonPretty(doc, client);
 }
- 
+
 char ReadModbus(uint16_t addr, uint8_t sizer, int16_t *vals, int type)
 {
   char result = 0;
@@ -411,13 +573,13 @@ char WriteModbus(uint16_t addr, int16_t val)
   result = node.writeMultipleRegisters(addr, 1);
   return result;
 }
- 
+
 void mqttreconnect()
 {
   int numretries = 0;
   while (!mqttclient.connected() && numretries < 3)
   {
-    if (mqttclient.connect(chipid, mqttusername, mqttpassword))
+    if (mqttclient.connect(chipid, mqtt_user, mqtt_pass))
     {
       mqttclient.subscribe("ventilation/ventset");
       mqttclient.subscribe("ventilation/modeset");
@@ -434,14 +596,17 @@ void mqttreconnect()
     numretries++;
   }
 }
- 
+
 void loop()
 {
+
+  drd.stop();
+
 #ifdef DEBUG_TELNET
   // handle Telnet connection for debugging
   handleTelnet();
 #endif
- 
+
   ArduinoOTA.handle();
   WiFiClient client = server.available();
   if (client)
@@ -451,17 +616,17 @@ void loop()
     {
       StaticJsonDocument<1000> doc;
       HandleRequest(doc);
- 
+
       writeResponse(client, doc);
     }
     client.stop();
   }
- 
+
   if (!mqttclient.connected())
   {
     mqttreconnect();
   }
- 
+
   if (mqttclient.connected())
   {
     mqttclient.loop();
@@ -547,11 +712,11 @@ void loop()
           mqttclient.publish("ventilation/error/modbus/", "1"); //error when connecting through modbus
         }
       }
- 
+
       // Tell the current state of RELAY1
       if (now - lastMsg > SENDINTERVAL)
       {
-        if (digitalRead(RELAY1_PIN))
+        if (digitalRead(D6))
         {
           mqttclient.publish("ventilation/relay/relay1/state", "on");
         }
@@ -559,11 +724,11 @@ void loop()
         {
           mqttclient.publish("ventilation/relay/relay1/state", "off");
         }
- 
+
         // Tell the current state of RELAY2
         if (now - lastMsg > SENDINTERVAL)
         {
-          if (digitalRead(RELAY2_PIN))
+          if (digitalRead(D7))
           {
             mqttclient.publish("ventilation/relay/relay2/state", "on");
           }
@@ -571,23 +736,23 @@ void loop()
           {
             mqttclient.publish("ventilation/relay/relay2/state", "off");
           }
- 
+
           // Handle text fields
           reqtypes rr2[] = {reqdisplay1, reqdisplay2}; // put another register in this line to subscribe
           for (int i = 0; i < (sizeof(rr2) / sizeof(rr2[0])); i++)
           {
             reqtypes r = rr2[i];
- 
+
             char result = ReadModbus(regaddresses[r], regsizes[r], rsbuffer, regtypes[r] & 1);
             if (result == 0)
             {
               String text = "";
               String mqname = "ventilation/text/";
- 
+
               for (int i = 0; i < regsizes[r]; i++)
               {
                 char *name = getName(r, i);
- 
+
                 if ((rsbuffer[i] & 0x00ff) == 0xDF)
                 {
                   text += (char)0x20; // replace degree sign with space
