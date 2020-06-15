@@ -16,6 +16,8 @@
      "Arduino JSON V6 by Benoît Blanchon https://github.com/bblanchon/ArduinoJson - IMPORTANT - Use latest V.6 !!! This code won´t compile with V.5
      "ModbusMaster by Doc Walker https://github.com/4-20ma/ModbusMaster
      "PubSubClient" by Nick O'Leary https://github.com/knolleary/pubsubclient
+     "Double Reset Detector" by DataCute https://github.com/datacute/DoubleResetDetector
+     "WifiManager" by Tzapu and Tablatronix https://github.com/tzapu/WiFiManager
      
   Project inspired by https://github.com/DanGunvald/NilanModbus
   Join this Danish Facebook Page for inspiration :) https://www.facebook.com/groups/667765647316443/
