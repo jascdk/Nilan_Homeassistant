@@ -38,7 +38,7 @@
 
 #define HOST "NilanGW-%s" // Change this to whatever you like. 
 #define MAXREGSIZE 26
-#define SENDINTERVAL 3000 // normally set to 180000 milliseconds = 3 minutes. Define as you like
+#define SENDINTERVAL 60000 // normally set to 180000 milliseconds = 3 minutes. Define as you like
 #define VENTSET 1003
 #define RUNSET 1001
 #define MODESET 1002
@@ -62,6 +62,8 @@ static long lastMsg = -SENDINTERVAL;
 static int16_t rsbuffer[MAXREGSIZE];
 ModbusMaster node;
 
+int16_t AlarmListNumber[] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,70,71,90,91,92};
+String AlarmListText[] = {"NONE","HARDWARE","TIMEOUT","FIRE","PRESSURE","DOOR","DEFROST","FROST","FROST","OVERTEMP","OVERHEAT","AIRFLOW","THERMO","BOILING","SENSOR","ROOM LOW","SOFTWARE","WATCHDOG","CONFIG","FILTER","LEGIONEL","POWER","T AIR","T WATER","T HEAT","MODEM","INSTABUS","T1SHORT","T1OPEN","T2SHORT","T2OPEN","T3SHORT","T3OPEN","T4SHORT","T4OPEN","T5SHORT","T5OPEN","T6SHORT","T6OPEN","T7SHORT","T7OPEN","T8SHORT","T8OPEN","T9SHORT","T9OPEN","T10SHORT","T10OPEN","T11SHORT","T11OPEN","T12SHORT","T12OPEN","T13SHORT","T13OPEN","T14SHORT","T14OPEN","T15SHORT","T15OPEN","T16SHORT","T16OPEN","ANODE","EXCH INFO","SLAVE IO","OPT IO","PRESET","INSTABUS"};
 
 
 String req[4]; //operation, group, address, value
@@ -448,7 +450,7 @@ void loop()
           for (int i = 0; i < regsizes[r]; i++)
           {
             char *name = getName(r, i);
-            char numstr[8];
+            char numstr[10];
             if (name != NULL && strlen(name) > 0)
             {
               String mqname = "temp/";
@@ -476,7 +478,61 @@ void loop()
                 break;
               case reqalarm:
                 mqname = "ventilation/alarm/"; // Subscribe to the "alarm" register
-                itoa((rsbuffer[i]), numstr, 10);
+
+                switch (i) 
+                {
+                  case 1: // Alarm.List_1_ID
+                  case 4: // Alarm.List_2_ID
+                  case 7: // Alarm.List_3_ID
+                    if (rsbuffer[i] > 0) 
+                    {
+                      //itoa((rsbuffer[i]), numstr, 10); 
+                      sprintf(numstr,"UNKNOWN"); // Preallocate unknown if no match if found
+                      for (int p = 0; p < (sizeof(AlarmListNumber)); p++)
+                      {
+                        if (AlarmListNumber[p] == rsbuffer[i])                        
+                        {
+                      //   memset(numstr, 0, sizeof numstr);
+                      //   strcpy (numstr,AlarmListText[p].c_str());
+                         sprintf(numstr,AlarmListText[p].c_str());
+                         break; 
+                        } 
+                      }
+                    } else
+                    {
+                      sprintf(numstr,"None"); // No alarm, output None   
+                    }
+                    break;
+                  case 2: // Alarm.List_1_Date
+                  case 5: // Alarm.List_2_Date
+                  case 8: // Alarm.List_3_Date
+                    if (rsbuffer[i] > 0) 
+                    {
+                      sprintf(numstr,"%d",(rsbuffer[i] >> 9) + 1980); 
+                      sprintf(numstr + strlen(numstr),"-%02d",(rsbuffer[i] & 0x1E0) >> 5);
+                      sprintf(numstr + strlen(numstr),"-%02d",(rsbuffer[i] & 0x1F));
+                    } else
+                    {
+                      sprintf(numstr,"N/A"); // No alarm, output N/A 
+                    }
+                    break;
+                  case 3: // Alarm.List_1_Time
+                  case 6: // Alarm.List_2_Time
+                  case 9: // Alarm.List_3_Time
+                    if (rsbuffer[i] > 0) 
+                    {                  
+                      sprintf(numstr,"%02d",rsbuffer[i] >> 11); 
+                      sprintf(numstr + strlen(numstr),":%02d",(rsbuffer[i] & 0x7E0) >> 5);
+                      sprintf(numstr + strlen(numstr),":%02d",(rsbuffer[i] & 0x11F)* 2);   
+                    } else
+                    {
+                      sprintf(numstr,"N/A"); // No alarm, output N/A  
+                    }
+                    
+                    break;                   
+                  default: // used for Status bit (case 0)
+                    itoa((rsbuffer[i]), numstr, 10); 
+                }
                 break;
               case reqinputairtemp:
                 mqname = "ventilation/inputairtemp/"; // Subscribe to the "inputairtemp" register
