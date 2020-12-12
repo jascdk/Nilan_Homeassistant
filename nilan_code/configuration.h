@@ -1,30 +1,31 @@
 /* 
  *  It should not be necessary to change anything else than in this file to suit your needs.
  *  If you need to change other things, consider adding to this file and submit a pull request :)
- *  Remember that all password, ssid´s and so on are CASE SENSITIVE !
  */
 
-// Change config to verify that project has been configured
-#define CONFIGURED 0 // Change this to "1" when you completed your config and begin upload
+// Change config to "1" verify that project has been configured
+#define CONFIGURED 1
 
 // WIFI settings
-#define WIFISSID     "XX" // Put in your SSID 
-#define WIFIPASSWORD "XX" // Put in you SSID Password 
-#define CUSTOM_HOSTNAME "Nilan_MQTT"  // Hostname of the ESP8266 so that it's easier to find in your DHCP range
+#define WIFI_SSID     "XXXXXX"            // Put in your SSID
+#define WIFI_PASSWORD "XXXXXX"            // Put in you SSID Password
 
-// LED settings
-#define WIFI_LED     2     // Blue led on NodeMCU
-#define USE_WIFI_LED false // if 'true', the blue led in a NodeMCU will blink during connection,
-                           // and glow solid once connected
 // MQTT settings
-#define MQTTSERVER   "XX" // Put in the IP adresse of your MQTT broker
-#define MQTTUSERNAME NULL // Username for the MQTT broker (NULL if no username is required)
-#define MQTTPASSWORD NULL // Passowrd for the MQTT broker (NULL if no password is required)
+#define MQTT_SERVER   "XXXXXX"            // Put in the IP adresse of your MQTT broker
+#define MQTT_PORT     "1883"              // Put in your MQTT broker PORT number - defaults to 1883  
+#define MQTT_USERNAME "XXXXXX"            // Username for the MQTT broker (NULL if no username is required)
+#define MQTT_PASSWORD "XXXXXX"            // Passowrd for the MQTT broker (NULL if no password is required)
 
-// Serial port
-#define SERIAL       SERIAL_HARDWARE // SERIAL_SOFTWARE or SERIAL_HARDWARE
-#define SERIAL_SOFTWARE_RX D2 // only needed if SERIAL is SERIAL_SOFTWARE
-#define SERIAL_SOFTWARE_TX D1 // only needed if SERIAL is SERIAL_SOFTWARE
+const String   MQTT_CLIENT = "NILAN-AIR-GATEWAY-COMFORT-300-";       // mqtt client_id prefix. Will be suffixed with Esp32 mac to make it unique
+
+char* usersetTopic1 = "ventilation/userset"; 
+ 
+// Comment out below to disable the OTA feature, especially if you have
+// stability problems.
+//#define ENABLE_ARDUINO_OTA
+
+/* Serial */
+#define SERIAL_BAUD_RATE  115200               // Speed for USB serial console
 
 #if CONFIGURED == 0
   #error "Default configuration used - won't upload to avoid loosing connection."
