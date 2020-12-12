@@ -12,64 +12,78 @@
   Mini (or other ESP8266-based board) and report the values to an MQTT
   broker. Then use it for your home-automation system like Home Assistant.
   
+  This code is currently adopted to be working with the Nilan cts HMI light version. It is slightly different than some of their other hardware boards.
+  
   External dependencies. Install using the Arduino library manager:
   
      "Arduino JSON V6 by Benoît Blanchon https://github.com/bblanchon/ArduinoJson - IMPORTANT - Use latest V.6 !!! This code won´t compile with V.5 
      "ModbusMaster by Doc Walker https://github.com/4-20ma/ModbusMaster
      "PubSubClient" by Nick O'Leary https://github.com/knolleary/pubsubclient
      
-  Porject inspired by https://github.com/DanGunvald/NilanModbus
+  Project inspired by https://github.com/DanGunvald/NilanModbus
 
   Join this Danish Facebook Page for inspiration :) https://www.facebook.com/groups/667765647316443/
 */
 
-#include <ArduinoJson.h>
-#include <ESP8266WiFi.h>
-#include <ArduinoOTA.h>
-#include <ModbusMaster.h>
-#include <PubSubClient.h>
+
+#define VERSION "1.6"
+
+/*--------------------------- Configuration ------------------------------*/
+// Configuration should be done in the included file:
+
 #include "configuration.h"
-#if SERIAL == SERIAL_SOFTWARE
-#include <SoftwareSerial.h>
+
+/*--------------------------- Libraries ----------------------------------*/
+
+#include <ArduinoJson.h> // https://github.com/bblanchon/ArduinoJson
+#include <WiFiClient.h>
+#include <PubSubClient.h>
+#include <ModbusMaster.h>
+#include <WiFi.h>
+#ifdef ENABLE_ARDUINO_OTA
+#include <ArduinoOTA.h>
 #endif
 
-#define SERIAL_SOFTWARE 1
-#define SERIAL_HARDWARE 2
+/*--------------------------- Global Variables ---------------------------*/
+// Nilan Gateway
 
-#define HOST "NilanGW-%s" // Change this to whatever you like. 
-#define MAXREGSIZE 26
-#define SENDINTERVAL 60000 // normally set to 180000 milliseconds = 3 minutes. Define as you like
+#define MAXREGSIZE 28
+#define SENDINTERVAL 6000 // normally set to 180000 milliseconds = 3 minutes. Define as you like
 #define VENTSET 1003
 #define RUNSET 1001
 #define MODESET 1002
 #define TEMPSET 1004
-#define PROGRAMSET 500
+#define SELECTSET 500
+#define USERFUNCSET 601
+#define USERVENTSET 603
+#define USERTIMESET 602
+#define USERTEMPSET 604
+#define COOLVENT 1101
+#define COOLSET 1200
 
-#if SERIAL == SERIAL_SOFTWAR
-SoftwareSerial SSerial(SERIAL_SOFTWARE_RX, SERIAL_SOFTWARE_TX); // RX, TX
-#endif
+#define WIFI_TIMEOUT_MS 20000
 
-const char* ssid = WIFISSID;
-const char* password = WIFIPASSWORD;
-char chipid[12];
-const char* mqttserver = MQTTSERVER;
-const char* mqttusername = MQTTUSERNAME;
-const char* mqttpassword = MQTTPASSWORD;
+const char* ssid = WIFI_SSID;
+const char* password = WIFI_PASSWORD;
+const char* mqttserver = MQTT_SERVER;
+const char* mqttusername = MQTT_USERNAME;
+const char* mqttpassword = MQTT_PASSWORD;
+
+String mqttClientWithMac;
+
 WiFiServer server(80);
 WiFiClient client;
 PubSubClient mqttclient(client);
 static long lastMsg = -SENDINTERVAL;
 static int16_t rsbuffer[MAXREGSIZE];
 ModbusMaster node;
-
-int16_t AlarmListNumber[] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,70,71,90,91,92};
-String AlarmListText[] = {"NONE","HARDWARE","TIMEOUT","FIRE","PRESSURE","DOOR","DEFROST","FROST","FROST","OVERTEMP","OVERHEAT","AIRFLOW","THERMO","BOILING","SENSOR","ROOM LOW","SOFTWARE","WATCHDOG","CONFIG","FILTER","LEGIONEL","POWER","T AIR","T WATER","T HEAT","MODEM","INSTABUS","T1SHORT","T1OPEN","T2SHORT","T2OPEN","T3SHORT","T3OPEN","T4SHORT","T4OPEN","T5SHORT","T5OPEN","T6SHORT","T6OPEN","T7SHORT","T7OPEN","T8SHORT","T8OPEN","T9SHORT","T9OPEN","T10SHORT","T10OPEN","T11SHORT","T11OPEN","T12SHORT","T12OPEN","T13SHORT","T13OPEN","T14SHORT","T14OPEN","T15SHORT","T15OPEN","T16SHORT","T16OPEN","ANODE","EXCH INFO","SLAVE IO","OPT IO","PRESET","INSTABUS"};
-
-
 String req[4]; //operation, group, address, value
 enum reqtypes
 {
   reqtemp = 0,
+  reqtemp1,
+  reqtemp2,
+  reqmoist,
   reqalarm,
   reqtime,
   reqcontrol,
@@ -80,6 +94,7 @@ enum reqtypes
   reqprogram,
   requser,
   requser2,
+  reqactstate,
   reqinfo,
   reqinputairtemp,
   reqapp,
@@ -90,15 +105,21 @@ enum reqtypes
   reqmax
 };
  
-String groups[] = {"temp", "alarm", "time", "control", "speed", "airtemp", "airflow", "airheat", "program", "user", "user2", "info", "inputairtemp", "app", "output", "display1", "display2", "display"};
-byte regsizes[] = {23, 10, 6, 8, 2, 6, 2, 0, 1, 6, 6, 14, 7, 4, 26, 4, 4, 1};
-int regaddresses[] = {200, 400, 300, 1000, 200, 1200, 1100, 0, 500, 600, 610, 100, 1200, 0, 100, 2002, 2007, 3000};
-byte regtypes[] = {8, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 2, 1, 4, 4, 8};
+String groups[] = {"temp", "temp1", "temp2", "moist", "alarm", "time", "control", "speed", "airtemp", "airflow", "airheat", "program", "user", "user2", "actstate", "info", "inputairtemp",  "app", "output", "display1", "display2", "display"};
+byte regsizes[] = {1, 2, 2, 1, 10, 6, 8, 2, 6, 2, 0, 1, 6, 6, 4, 14, 7, 4, 28, 4, 4, 1};
+int regaddresses[] = {200, 203, 207, 221, 400, 300, 1000, 200, 1200, 1100, 0, 500, 600, 610, 1000, 100, 1200, 0, 100, 2002, 2007, 3000};
+byte regtypes[] = {8, 8, 8, 8, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 8, 2, 1, 4, 4, 8};
 char *regnames[][MAXREGSIZE] = {
-    //temp
-    {"T0_Controller", NULL, NULL, "T3_Exhaust", "T4_Outlet", NULL, NULL, "T7_Inlet", "T8_Outdoor", NULL, NULL, NULL, NULL, NULL, NULL, "T15_Room", NULL, NULL, NULL, NULL, NULL, "RH", NULL},
+     //temp
+    {"T0_Controller"},
+    //temp1
+    {"T3_Exhaust", "T4_Outlet"},
+    //temp2
+    {"T7_Inlet", "T8_Outdoor"},
+    //moist
+    {"RH"},
     //alarm
-    {"Status", "List_1_ID", "List_1_Date", "List_1_Time", "List_2_ID", "List_2_Date", "List_2_Time", "List_3_ID", "List_3_Date", "List_3_Time"},
+    {"Status", "List_1_ID ", "List_1_Date", "List_1_Time", "List_2_ID ", "List_2_Date", "List_2_Time", "List_3_ID ", "List_3_Date", "List_3_Time"},
     //time
     {"Second", "Minute", "Hour", "Day", "Month", "Year"},
     //control
@@ -108,15 +129,17 @@ char *regnames[][MAXREGSIZE] = {
     //airtemp
     {"CoolSet", "TempMinSum", "TempMinWin", "TempMaxSum", "TempMaxWin", "TempSummer"},
     //airflow
-    {"AirExchMode", "CoolVent"},
+    {"VentSet", "InletAct"},
     //airheat
     {},
-    //program
-    {"Program"},
+     //program
+    {"Selectset"},
     //program.user
     {"UserFuncAct", "UserFuncSet", "UserTimeSet", "UserVentSet", "UserTempSet", "UserOffsSet"},
     //program.user2
     {"User2FuncAct", "User2FuncSet", "User2TimeSet", "User2VentSet", "UserTempSet", "UserOffsSet"},
+    //actstate
+    {"RunAct", "ModeAct", "State", "SecInState"},
     //info
     {"UserFunc", "AirFilter", "DoorOpen", "Smoke", "MotorThermo", "Frost_overht", "AirFlow", "P_Hi", "P_Lo", "Boil", "3WayPos", "DefrostHG", "Defrost", "UserFunc_2"},
     //inputairtemp
@@ -124,14 +147,15 @@ char *regnames[][MAXREGSIZE] = {
     //app
     {"Bus.Version", "VersionMajor", "VersionMinor", "VersionRelease"},
     //output
-    {"AirFlap", "SmokeFlap", "BypassOpen", "BypassClose", "AirCircPump", "AirHeatAllow", "AirHeat_1", "AirHeat_2", "AirHeat_3", "Compressor", "Compressor_2", "4WayCool", "HotGasHeat", "HotGasCool", "CondOpen", "CondClose", "WaterHeat", "3WayValve", "CenCircPump", "CenHeat_1", "CenHeat_2", "CenHeat_3", "CenHeatExt", "UserFunc", "UserFunc_2", "Defrosting"},
+    {"AirFlap", "SmokeFlap", "BypassOpen", "BypassClose", "AirCircPump", "AirHeatAllow", "AirHeat_1", "AirHeat_2", "AirHeat_3", "Compressor", "Compressor_2", "4WayCool", "HotGasHeat", "HotGasCool", "CondOpen", "CondClose", "WaterHeat", "3WayValve", "CenCircPump", "CenHeat_1", "CenHeat_2", "CenHeat_3", "CenHeatExt", "UserFunc", "UserFunc_2", "Defrosting", "AlarmRelay", "PreHeat"},
     //display1
     {"Text_1_2", "Text_3_4", "Text_5_6", "Text_7_8"},
     //display2
     {"Text_9_10", "Text_11_12", "Text_13_14", "Text_15_16"},
     //airbypass
     {"AirBypass/IsOpen"}};
-    
+   
+ 
 char *getName(reqtypes type, int address)
 {
   if (address >= 0 && address <= regsizes[type])
@@ -141,6 +165,8 @@ char *getName(reqtypes type, int address)
   return NULL;
 }
 
+/*--------------------------- Function JSON Requests ------------------------*/
+ 
 JsonObject HandleRequest(JsonDocument& doc)
 {
   JsonObject root = doc.to<JsonObject>();
@@ -164,7 +190,7 @@ JsonObject HandleRequest(JsonDocument& doc)
     char result = -1;
     address = regaddresses[r];
     nums = regsizes[r];
-
+ 
     result = ReadModbus(address, nums, rsbuffer, type & 1);
     if (result == 0)
     {
@@ -219,46 +245,121 @@ JsonObject HandleRequest(JsonDocument& doc)
   return root;
 }
 
-void setup()
+/*--------------------------- Function related to wifi setup ------------------------*/
+
+void connectToWiFi()
 {
-  char host[64];
-  sprintf(chipid, "%08X", ESP.getChipId());
-  sprintf(host, HOST, chipid);
-  delay(500);
-  WiFi.hostname(host);
-  ArduinoOTA.setHostname(host);
+
+  Serial.println("\n\n\r--------------------------------");
+  Serial.println("  Nilan Gateway Open Source");
+  Serial.println("--------------------------------\n\n");
+
+  Serial.println();
+  Serial.print("Nilan Air Gateway starting up, version ");
+  Serial.println(VERSION);
+  Serial.print("Connecting to WiFi network: " + String(ssid));
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
-  while (WiFi.waitForConnectResult() != WL_CONNECTED)
-  {
-    delay(5000);
-    ESP.restart();
-  }
-  ArduinoOTA.onStart([]() {
-  });
-  ArduinoOTA.onEnd([]() {
-  });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-  });
-  ArduinoOTA.onError([](ota_error_t error) {
-  });
-  ArduinoOTA.begin();
-  server.begin();
 
-  #if SERIAL == SERIAL_SOFTWARE
-    #warning Compiling for software serial
-    SSerial.begin(19200); // SERIAL_8E1
-    node.begin(30, SSerial);
-  #elif SERIAL == SERIAL_HARDWARE
-    #warning Compiling for hardware serial
-    Serial.begin(19200, SERIAL_8E1);
-    node.begin(30, Serial);
-  #else
-    #error hardware og serial serial port?
+  unsigned long startAttemptTime = millis();
+
+  while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < WIFI_TIMEOUT_MS)
+  {
+    Serial.print(".");
+    delay(500);
+  }
+
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    Serial.println(" Failed! ");
+  }
+  else
+  {
+    Serial.println("\nWiFi connected successfully and assigned IP: " + WiFi.localIP().toString());
+
+    // print the received signal strength:
+    long rssi = WiFi.RSSI();
+    Serial.print("RSSI:");
+    Serial.println(rssi);
+
+    delay(500);
+  }
+}
+
+/*--------------------------- Main program setup ------------------------*/
+
+void setup()
+{
+  
+  pinMode(4,  OUTPUT); // user - relay
+
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+
+  char macStr[13] = {0};
+  sprintf(macStr, "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+  mqttClientWithMac = String(MQTT_CLIENT + macStr);
+
+  std::string s_mqtt_port = MQTT_PORT;
+  uint16_t i_mqtt_port = atoi(s_mqtt_port.c_str());
+
+  Serial.println("\nHardware initialized, starting program load");
+  
+  Serial.begin(SERIAL_BAUD_RATE);
+
+  connectToWiFi();
+
+#ifdef ENABLE_ARDUINO_OTA
+ArduinoOTA.setHostname("NILAN-GATEWAY-OTA");
+  ArduinoOTA
+    .onStart([]() {
+      Serial.println("ESP OTA:  update start");
+      String type;
+      if (ArduinoOTA.getCommand() == U_FLASH)
+        type = "sketch";
+      else // U_SPIFFS
+        type = "filesystem";
+
+      // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+      Serial.println("Start updating " + type);
+    })
+    .onEnd([]() {
+      Serial.println("ESP OTA:  update complete");
+    })
+    .onProgress([](unsigned int progress, unsigned int total) {
+      Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+    })
+    .onError([](ota_error_t error) {
+      Serial.printf("Error[%u]: ", error);
+      if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+      else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+      else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+      else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+      else if (error == OTA_END_ERROR) Serial.println("End Failed");
+      
+    });
+
+  ArduinoOTA.begin();
+  Serial.println("ESP OTA:  Over the Air firmware update ready\n");
   #endif
 
-  mqttclient.setServer(mqttserver, 1883);
+prepareModbus();
+  
+  server.begin();
+  mqttclient.setServer(mqttserver, i_mqtt_port);
   mqttclient.setCallback(mqttcallback);
+
+  Serial.println("Initialization complete\n");
+}
+
+void prepareModbus()
+{
+  Serial.println("Preparing Modbus\n");
+  Serial2.begin(19200, SERIAL_8E1);
+  node.begin(30, Serial2);
+  node.clearResponseBuffer();
+  node.clearTransmitBuffer();
 }
 
 void mqttcallback(char *topic, byte *payload, unsigned int length)
@@ -287,6 +388,77 @@ void mqttcallback(char *topic, byte *payload, unsigned int length)
       WriteModbus(RUNSET, run);
     }
   }
+  if (strcmp(topic, "ventilation/userset") == 0)
+  {
+    if (payload[0] == '1')
+    {
+      digitalWrite(4, HIGH);
+    
+      mqttclient.publish("ventilation/userset", "on");
+    }
+    else if (payload[0] == '0')
+    {
+      digitalWrite(4, LOW);
+      
+      mqttclient.publish("ventilation/userset", "off");
+    }
+  }
+  if (strcmp(topic, "ventilation/userfuncset") == 0)
+  {
+    if (length == 1 && payload[0] >= '0' && payload[0] <= '4')
+    {
+      int16_t select = payload[0] - '0';
+      WriteModbus(USERFUNCSET, select);
+    }
+  }
+  if (strcmp(topic, "ventilation/userventset") == 0)
+  {
+    if (length == 1 && payload[0] >= '0' && payload[0] <= '4')
+    {
+      int16_t vent = payload[0] - '0';
+      WriteModbus(USERVENTSET, vent);
+    }
+  }
+  if (strcmp(topic, "ventilation/coolvent") == 0)
+  {
+    if (length == 1 && payload[0] >= '0' && payload[0] <= '4')
+    {
+      int16_t airflow = payload[0] - '0';
+      WriteModbus(COOLVENT, airflow);
+    }
+  }
+  if (strcmp(topic, "ventilation/coolset") == 0)
+  {
+    if (length == 1 && payload[0] >= '0' && payload[0] <= '8')
+    {
+      int16_t airtemp = payload[0] - '0';
+      WriteModbus(COOLSET, airtemp);
+    }
+  }
+  if (strcmp(topic, "ventilation/usertimeset") == 0)
+  {
+    if (length == 3 && payload[0] >= '0' && payload[0] <= '8')
+    {
+      String str;
+      for (int i = 0; i < length; i++)
+      {
+        str += (char)payload[i];
+      }
+      WriteModbus(USERTIMESET, str.toInt());
+    }
+  }
+  if (strcmp(topic, "ventilation/usertempset") == 0)
+  {
+    if (length == 2 && payload[0] >= '0' && payload[0] <= '2')
+    {
+      String str;
+      for (int i = 0; i < length; i++)
+      {
+        str += (char)payload[i];
+      }
+      WriteModbus(USERTEMPSET, str.toInt());
+    }
+  }
   if (strcmp(topic, "ventilation/tempset") == 0)
   {
     if (length == 4 && payload[0] >= '0' && payload[0] <= '2')
@@ -299,14 +471,14 @@ void mqttcallback(char *topic, byte *payload, unsigned int length)
       WriteModbus(TEMPSET, str.toInt());
     }
   }
-   if (strcmp(topic, "ventilation/programset") == 0)
+  if (strcmp(topic, "ventilation/selectset") == 0)
   {
     if (length == 1 && payload[0] >= '0' && payload[0] <= '4')
     {
-      int16_t program = payload[0] - '0';
-      WriteModbus(PROGRAMSET, program);
+      int16_t select = payload[0] - '0';
+      WriteModbus(SELECTSET, select);
     }
-   } 
+  }
   lastMsg = -SENDINTERVAL;
 }
 
@@ -346,14 +518,16 @@ bool readRequest(WiFiClient &client)
   return false;
 }
 
-void writeResponse(WiFiClient& client, const JsonDocument& doc)  
+void writeResponse(WiFiClient &client, const JsonDocument &doc)
 {
   client.println("HTTP/1.1 200 OK");
   client.println("Content-Type: application/json");
   client.println("Connection: close");
   client.println();
-  serializeJsonPretty(doc,client);
+  serializeJsonPretty(doc, client);
 }
+
+/*--------------------------- Function related to modbus ------------------------*/
 
 char ReadModbus(uint16_t addr, uint8_t sizer, int16_t *vals, int type)
 {
@@ -382,225 +556,230 @@ char WriteModbus(uint16_t addr, int16_t val)
   node.setTransmitBuffer(0, val);
   char result = 0;
   result = node.writeMultipleRegisters(addr, 1);
+  if (result == node.ku8MBSuccess)
+  {
+    Serial.println("Write OK");
+  }
+  else
+  {
+    Serial.println("Write NOT OK");
+    Serial.println("Clear bufs");
+    node.clearResponseBuffer();
+    node.clearTransmitBuffer();
+  }
   return result;
 }
+
+/*--------------------------- Function for reconnecting MQTT ------------------------*/
 
 void mqttreconnect()
 {
   int numretries = 0;
   while (!mqttclient.connected() && numretries < 3)
   {
-    if (mqttclient.connect(chipid, mqttusername, mqttpassword))
+    if (mqttclient.connect(mqttClientWithMac.c_str(), mqttusername, mqttpassword))
     {
+      digitalWrite(13, 1);
       mqttclient.subscribe("ventilation/ventset");
       mqttclient.subscribe("ventilation/modeset");
       mqttclient.subscribe("ventilation/runset");
       mqttclient.subscribe("ventilation/tempset");
-      mqttclient.subscribe("ventilation/programset");
+      mqttclient.subscribe("ventilation/selectset");
+      mqttclient.subscribe("ventilation/userset");
+      mqttclient.subscribe("ventilation/userfuncset");
+      mqttclient.subscribe("ventilation/userventset");
+      mqttclient.subscribe("ventilation/usertimeset");
+      mqttclient.subscribe("ventilation/usertempset");
+      mqttclient.subscribe("ventilation/coolvent");
+      mqttclient.subscribe("ventilation/coolset");
     }
     else
     {
+      digitalWrite(13, 0);
       delay(1000);
+      numretries++;
     }
-    numretries++;
   }
 }
 
+/*--------------------------- Program loop / main loop ------------------------*/
+
 void loop()
 {
-#ifdef DEBUG_TELNET
-  // handle Telnet connection for debugging
-  handleTelnet();
-#endif
-
+#ifdef ENABLE_ARDUINO_OTA
   ArduinoOTA.handle();
-  WiFiClient client = server.available();
-  if (client)
+#endif  
+  if (WiFi.status() != WL_CONNECTED)
   {
-    bool success = readRequest(client);
-    if (success)
-    {
-      StaticJsonDocument<1000> doc;
-      HandleRequest(doc);
- 
-      writeResponse(client, doc);
-    }
-    client.stop();
+
+    if (WiFi.waitForConnectResult() != WL_CONNECTED)
+      return;
   }
 
-  if (!mqttclient.connected())
+  if (WiFi.status() == WL_CONNECTED)
   {
-    mqttreconnect();
-  }
 
-  if (mqttclient.connected())
-  {
-    mqttclient.loop();
-    long now = millis();
-    if (now - lastMsg > SENDINTERVAL)
+    WiFiClient client = server.available();
+    if (client)
     {
-       reqtypes rr[] = {reqtemp, reqcontrol, reqtime, reqoutput, reqspeed, reqalarm, reqinputairtemp, reqprogram, requser, reqdisplay, reqinfo}; // put another register in this line to subscribe
-      for (int i = 0; i < (sizeof(rr)/sizeof(rr[0])); i++)
+      bool success = readRequest(client);
+      if (success)
       {
-        reqtypes r = rr[i];
-        char result = ReadModbus(regaddresses[r], regsizes[r], rsbuffer, regtypes[r] & 1); 
-        if (result == 0)
-        {
-          mqttclient.publish("ventilation/error/modbus/", "0"); //no error when connecting through modbus
-          for (int i = 0; i < regsizes[r]; i++)
-          {
-            char *name = getName(r, i);
-            char numstr[10];
-            if (name != NULL && strlen(name) > 0)
-            {
-              String mqname = "temp/";
-              switch (r)
-              {
-              case reqcontrol:
-                mqname = "ventilation/control/"; // Subscribe to the "control" register
-                itoa((rsbuffer[i]), numstr, 10);
-                break;
-              case reqtime:
-                mqname = "ventilation/time/"; // Subscribe to the "output" register
-                itoa((rsbuffer[i]), numstr, 10);
-                break;
-              case reqoutput:
-                mqname = "ventilation/output/"; // Subscribe to the "output" register
-                itoa((rsbuffer[i]), numstr, 10);
-                break;
-              case reqdisplay:
-                mqname = "ventilation/display/"; // Subscribe to the "input display" register
-                itoa((rsbuffer[i]), numstr, 10);
-                break;
-              case reqspeed:
-                mqname = "ventilation/speed/"; // Subscribe to the "speed" register
-                itoa((rsbuffer[i]), numstr, 10);
-                break;
-              case reqalarm:
-                mqname = "ventilation/alarm/"; // Subscribe to the "alarm" register
+        StaticJsonDocument<500> doc;
+        HandleRequest(doc);
 
-                switch (i) 
+        writeResponse(client, doc);
+      }
+      client.stop();
+    }
+
+    if (!mqttclient.connected())
+    {
+      mqttreconnect();
+    }
+
+    if (mqttclient.connected())
+    {
+      mqttclient.loop();
+      long now = millis();
+      if (now - lastMsg > SENDINTERVAL)
+      {
+        reqtypes rr[] = {reqtemp, reqtemp1, reqtemp2, reqmoist, reqcontrol, reqtime, reqoutput, reqspeed, reqairtemp, reqalarm, reqinputairtemp, reqprogram, requser, reqdisplay, reqactstate, reqinfo, reqairflow}; // put another register in this line to subscribe
+        for (int i = 0; i < (sizeof(rr) / sizeof(rr[0])); i++)
+        {
+          reqtypes r = rr[i];
+          char result = ReadModbus(regaddresses[r], regsizes[r], rsbuffer, regtypes[r] & 1);
+          if (result == 0)
+          {
+            mqttclient.publish("ventilation/error/modbus/", "0"); //no error when connecting through modbus
+            for (int i = 0; i < regsizes[r]; i++)
+            {
+              char *name = getName(r, i);
+              char numstr[8];
+              if (name != NULL && strlen(name) > 0)
+              {
+                String mqname = "temp/";
+                switch (r)
                 {
-                  case 1: // Alarm.List_1_ID
-                  case 4: // Alarm.List_2_ID
-                  case 7: // Alarm.List_3_ID
-                    if (rsbuffer[i] > 0) 
-                    {
-                      //itoa((rsbuffer[i]), numstr, 10); 
-                      sprintf(numstr,"UNKNOWN"); // Preallocate unknown if no match if found
-                      for (int p = 0; p < (sizeof(AlarmListNumber)); p++)
-                      {
-                        if (AlarmListNumber[p] == rsbuffer[i])                        
-                        {
-                      //   memset(numstr, 0, sizeof numstr);
-                      //   strcpy (numstr,AlarmListText[p].c_str());
-                         sprintf(numstr,AlarmListText[p].c_str());
-                         break; 
-                        } 
-                      }
-                    } else
-                    {
-                      sprintf(numstr,"None"); // No alarm, output None   
-                    }
-                    break;
-                  case 2: // Alarm.List_1_Date
-                  case 5: // Alarm.List_2_Date
-                  case 8: // Alarm.List_3_Date
-                    if (rsbuffer[i] > 0) 
-                    {
-                      sprintf(numstr,"%d",(rsbuffer[i] >> 9) + 1980); 
-                      sprintf(numstr + strlen(numstr),"-%02d",(rsbuffer[i] & 0x1E0) >> 5);
-                      sprintf(numstr + strlen(numstr),"-%02d",(rsbuffer[i] & 0x1F));
-                    } else
-                    {
-                      sprintf(numstr,"N/A"); // No alarm, output N/A 
-                    }
-                    break;
-                  case 3: // Alarm.List_1_Time
-                  case 6: // Alarm.List_2_Time
-                  case 9: // Alarm.List_3_Time
-                    if (rsbuffer[i] > 0) 
-                    {                  
-                      sprintf(numstr,"%02d",rsbuffer[i] >> 11); 
-                      sprintf(numstr + strlen(numstr),":%02d",(rsbuffer[i] & 0x7E0) >> 5);
-                      sprintf(numstr + strlen(numstr),":%02d",(rsbuffer[i] & 0x11F)* 2);   
-                    } else
-                    {
-                      sprintf(numstr,"N/A"); // No alarm, output N/A  
-                    }
-                    
-                    break;                   
-                  default: // used for Status bit (case 0)
-                    itoa((rsbuffer[i]), numstr, 10); 
-                }
-                break;
-              case reqinputairtemp:
-                mqname = "ventilation/inputairtemp/"; // Subscribe to the "inputairtemp" register
-                itoa((rsbuffer[i]), numstr, 10);
-                break;    
-              case reqprogram:
-                mqname = "ventilation/weekprogram/"; // Subscribe to the "week program" register
-                itoa((rsbuffer[i]), numstr, 10);
-                break;     
-              case requser:
-                mqname = "ventilation/user/"; // Subscribe to the "user" register
-                itoa((rsbuffer[i]), numstr, 10);
-                break;         
-              case reqinfo:
-                mqname = "ventilation/info/"; // Subscribe to the "info" register
-                itoa((rsbuffer[i]), numstr, 10);
-                break;         
-              case reqtemp:
-                if (strncmp("RH", name, 2) == 0) {
-                  mqname = "ventilation/moist/"; // Subscribe to moisture-level
-                } else {
+                case reqcontrol:
+                  mqname = "ventilation/control/"; // Subscribe to the "control" register
+                  itoa((rsbuffer[i]), numstr, 10);
+                  break;
+                case reqtime:
+                  mqname = "ventilation/time/"; // Subscribe to the "output" register
+                  itoa((rsbuffer[i]), numstr, 10);
+                  break;
+                case reqoutput:
+                  mqname = "ventilation/output/"; // Subscribe to the "output" register
+                  itoa((rsbuffer[i]), numstr, 10);
+                  break;
+                case reqdisplay:
+                  mqname = "ventilation/display/"; // Subscribe to the "input display" register
+                  itoa((rsbuffer[i]), numstr, 10);
+                  break;
+                case reqspeed:
+                  mqname = "ventilation/speed/"; // Subscribe to the "speed" register
+                  itoa((rsbuffer[i]), numstr, 10);
+                  break;
+                case reqairtemp:
+                  mqname = "ventilation/airtemp/"; // Subscribe to the "airtemp" register
+                  itoa((rsbuffer[i]), numstr, 10);
+                  break;
+                case reqalarm:
+                  mqname = "ventilation/alarm/"; // Subscribe to the "alarm" register
+                  itoa((rsbuffer[i]), numstr, 10);
+                  break;
+                case reqinputairtemp:
+                  mqname = "ventilation/inputairtemp/"; // Subscribe to the "inputairtemp" register
+                  itoa((rsbuffer[i]), numstr, 10);
+                  break;
+                case reqprogram:
+                  mqname = "ventilation/program/"; // Subscribe to the "program" register
+                  itoa((rsbuffer[i]), numstr, 10);
+                  break;
+                case requser:
+                  mqname = "ventilation/user/"; // Subscribe to the "user" register
+                  itoa((rsbuffer[i]), numstr, 10);
+                  break;
+                case reqactstate:
+                  mqname = "ventilation/actstate/"; // Subscribe to the "controlact" register
+                  itoa((rsbuffer[i]), numstr, 10);
+                  break;
+                case reqinfo:
+                  mqname = "ventilation/info/"; // Subscribe to the "info" register
+                  itoa((rsbuffer[i]), numstr, 10);
+                  break;
+                case reqairflow:
+                  mqname = "ventilation/airflow/"; // Subscribe to the "airflow" register
+                  itoa((rsbuffer[i]), numstr, 10);
+                  break;
+                case reqtemp:
                   mqname = "ventilation/temp/"; // Subscribe to "temp" register
+                  dtostrf((rsbuffer[i] / 100.0), 5, 2, numstr);
+                  break;
+                case reqtemp1:
+                  mqname = "ventilation/temp/"; // Subscribe to "temp" register
+                  dtostrf((rsbuffer[i] / 100.0), 5, 2, numstr);
+                  break;
+                case reqtemp2:
+                  mqname = "ventilation/temp/"; // Subscribe to "temp" register
+                  dtostrf((rsbuffer[i] / 100.0), 5, 2, numstr);
+                  break;
+                case reqmoist:
+                    mqname = "ventilation/moist/"; // Subscribe to moisture-level
+                  dtostrf((rsbuffer[i] / 100.0), 5, 2, numstr);
+                  break;
                 }
-                dtostrf((rsbuffer[i] / 100.0), 5, 2, numstr);
-                break;
+                mqname += (char *)name;
+                mqttclient.publish(mqname.c_str(), numstr);
               }
-              mqname += (char *)name;
-              mqttclient.publish(mqname.c_str(), numstr);
             }
           }
-        }
-        else {
-          mqttclient.publish("ventilation/error/modbus/", "1"); //error when connecting through modbus
-        }       
-      }
-
-      // Handle text fields
-      reqtypes rr2[] = {reqdisplay1, reqdisplay2}; // put another register in this line to subscribe
-      for (int i = 0; i < (sizeof(rr2)/sizeof(rr2[0])); i++) 
-      {
-        reqtypes r = rr2[i];
-
-        char result = ReadModbus(regaddresses[r], regsizes[r], rsbuffer, regtypes[r] & 1);
-        if (result == 0)
-        {
-          String text = "";
-          String mqname = "ventilation/text/";
-
-          for (int i = 0; i < regsizes[r]; i++)
+          else
           {
+            mqttclient.publish("ventilation/error/modbus/", "1"); //error when connecting through modbus
+          }
+        }
+
+        // Handle text fields
+        reqtypes rr2[] = {reqdisplay1, reqdisplay2};             // put another register in this line to subscribe
+        for (int i = 0; i < (sizeof(rr2) / sizeof(rr2[0])); i++) // change value "5" to how many registers you want to subscribe to
+        {
+          reqtypes r = rr2[i];
+
+          char result = ReadModbus(regaddresses[r], regsizes[r], rsbuffer, regtypes[r] & 1);
+          if (result == 0)
+          {
+            String text = "";
+            String mqname = "ventilation/text/";
+
+            for (int i = 0; i < regsizes[r]; i++)
+            {
               char *name = getName(r, i);
 
-              if ((rsbuffer[i] & 0x00ff) == 0xDF) {
+              if ((rsbuffer[i] & 0x00ff) == 0xDF)
+              {
                 text += (char)0x20; // replace degree sign with space
-              } else {
+              }
+              else
+              {
                 text += (char)(rsbuffer[i] & 0x00ff);
               }
-              if ((rsbuffer[i] >> 8) == 0xDF) {
+              if ((rsbuffer[i] >> 8) == 0xDF)
+              {
                 text += (char)0x20; // replace degree sign with space
-              } else {
+              }
+              else
+              {
                 text += (char)(rsbuffer[i] >> 8);
               }
               mqname += (char *)name;
+            }
+            mqttclient.publish(mqname.c_str(), text.c_str());
           }
-          mqttclient.publish(mqname.c_str(), text.c_str());
         }
+        lastMsg = now;
       }
-      lastMsg = now;
     }
   }
 }
