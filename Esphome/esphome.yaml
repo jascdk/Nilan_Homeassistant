@@ -1,3 +1,12 @@
+
+substitutions:
+  boardPlatform: ESP8266
+  boardName: d1_mini
+  
+  devicename: nilan_air
+  
+####################################################  
+
 esphome:
   name: nilan_lcd_info_panel
   platform: ESP8266
@@ -22,6 +31,9 @@ api:
 
 ota:
 
+status_led:
+  pin: GPIO2
+
 mqtt:
   broker: 10.0.1.2
 
@@ -40,6 +52,11 @@ sensor:
     id: temp_nilan
     entity_id: sensor.nilan_indblaes_temp
     internal: true
+  
+  - platform: homeassistant
+    id: humid_nilan
+    entity_id: sensor.nilan_luftfugtighed
+    internal: true  
 
 text_sensor:
 
@@ -65,30 +82,28 @@ display:
     address: 0x27
     lambda: |-
           
-          // Print 0 at the top left
-          it.print(4,0,"NILAN AIR");
+          // Print "Nilan Air top left"
+          it.print(0,0,"NILAN AIR");
           
           //Print the correct clock / time from Home Assistant
-          it.strftime(15,0,"%H:%M", id(homeassistant_time).now());
-    
-          //Print the actual temp blowing in 
-          if (id(temp_nilan).has_state()){
-          it.printf(0,3,"IN :%.1fc", id(temp_nilan).state);}
-      
-          //Print the nilan state - auto, heat, cool etc.  
-          if (id(status_nilan).has_state()){
-          it.printf(10,3,"MODE: %s", id(status_nilan).state.c_str());}
-      
+          it.strftime(12,0,"%H:%M:%S", id(homeassistant_time).now());
+           
           //Print the target temperature for the room - ex. what have you set your thermostat at.
           if (id(target_nilan).has_state()) {
           it.printf(0,2,"SET:%sc", id(target_nilan).state.c_str());}
           
+          //Print the actual humidity level
+          if (id(temp_nilan).has_state()){
+          it.printf(0,2,"HUM:%.2f", id(humid_nilan).state);}
+    
+          //Print the actual temp blowing in 
+          if (id(temp_nilan).has_state()){
+          it.printf(0,3,"IN :%.2f", id(temp_nilan).state);}
+      
+          //Print the nilan state - auto, heat, cool etc.  
+          if (id(status_nilan).has_state()){
+          it.printf(10,3,"MODE: %s", id(status_nilan).state.c_str());}
+          
           //Print the fan mode 1, 2 , 3, 4
           if (id(fan_nilan).has_state()) {
           it.printf(10,2,"FAN :    %s", id(fan_nilan).state.c_str());}
-
-
-            
-          
-      
-
