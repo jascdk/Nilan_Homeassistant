@@ -6,7 +6,17 @@ cards:
       - entity: sensor.nilan_luftfugtighed
         name: Luftfugtighed
     step_size: 1
-    type: 'custom:simple-thermostat'
+    type: thermostat
+  - type: grid
+    cards:
+      - type: entities
+        entities:
+          - entity: fan.nilan
+            type: 'custom:fan-control-entity-row'
+            name: Blæser Hastighed
+            customTheme: true
+    columns: 1
+    square: false
   - elements:
       - entity: sensor.nilan_udendors_temp
         style:
@@ -41,10 +51,67 @@ cards:
           color: white
           font-size: 150%
           left: 51.0%
-          top: 77.2%
+          top: 79%
+        type: state-label
+      - entity: sensor.nilan_temp_diff
+        style:
+          color: white
+          font-size: 120%
+          left: 51.0%
+          top: 88.2%
+        type: state-label
+      - entity: sensor.nilan_filterstatus
+        style:
+          color: white
+          font-size: 120%
+          left: 49.0%
+          top: 55.2%
+        type: state-label
+      - entity: sensor.nilan_krydsveklser_effektivitet
+        style:
+          color: white
+          font-size: 120%
+          left: 50.0%
+          top: 25.0%
+        type: state-label
+      - entity: sensor.nilan_udblaes_procent
+        style:
+          color: white
+          font-size: 120%
+          left: 30.0%
+          top: 72.0%
+        type: state-label
+      - entity: sensor.nilan_indblaes_procent
+        style:
+          color: white
+          font-size: 120%
+          left: 71.0%
+          top: 72.0%
         type: state-label
     image: /local/ventilation.png
     type: picture-elements
+  - type: grid
+    cards:
+      - type: 'custom:button-card'
+        lock:
+          enabled: true
+          unlock: hold
+        tap_action:
+          action: toggle
+        entity: switch.sonoff_nilan_pcb_power
+        icon: 'mdi:power'
+        name: Controller
+      - type: 'custom:button-card'
+        lock:
+          enabled: true
+          unlock: hold
+        tap_action:
+          action: toggle
+        entity: switch.sonoff_nilan
+        icon: 'mdi:power'
+        name: Anlæg
+    columns: 2
+    square: false
   - type: grid
     cards:
       - type: gauge
@@ -87,13 +154,17 @@ cards:
             name: Brugervalg aktiv
           - entity: binary_sensor.nilan_bypass
             state_color: true
+          - entity: binary_sensor.nilan_smoke
+            name: Brand-Sensor
+            state_color: true
           - entity: sensor.nilan_model
           - entity: sensor.drift
           - entity: sensor.nilan_filterstatus
             state_color: true
-          - entity: sensor.nilan_udblaes_procent
-          - entity: sensor.nilan_indblaes_procent
-          - entity: fan.nilan
+          - entity: sensor.nilan_dage_siden_filterskift
+            name: Dagen siden filterskift
+          - entity: sensor.nilan_dage_til_filterskift
+            name: Dage til filterskift
   - type: entities
     entities:
       - type: 'custom:fold-entity-row'
@@ -110,4 +181,3 @@ cards:
             name: Temperatur
           - entity: switch.nilan_bruger_valg
             name: Aktiver Brugervalg
-
