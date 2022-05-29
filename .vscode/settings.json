@@ -1,0 +1,51 @@
+{
+    "cSpell.words": [
+        "chipid",
+        "dtostrf",
+        "Modbus"
+    ],
+    "cSpell.ignoreWords": [
+        "Gunvald",
+        "Anders",
+        "Kvist",
+        "Scherrebeck",
+        "Wemos",
+        "Benoît",
+        "Blanchon",
+        "ventset",
+        "runset",
+        "modeset",
+        "tempset",
+        "programset",
+        "OVERTEMP",
+        "LEGIONEL",
+        "INSTABUS",
+        "reqtemp",
+        "reqalarm",
+        "reqtime",
+        "reqcontrol",
+        "reqspeed",
+        "reqairtemp",
+        "reqairflow",
+        "reqairheat",
+        "reqprogram",
+        "requser",
+        "requser2",
+        "reqinfo",
+        "reqinputairtemp",
+        "reqapp",
+        "reqoutput",
+        "reqdisplay1",
+        "reqdisplay2",
+        "reqdisplay",
+        "reqmax",
+        "airtemp",
+        "airheat",
+        "inputairtemp",
+        "Frost_overht",
+        "SWSERIAL_8E1",
+        "weekprogram"
+
+
+    ]
+}

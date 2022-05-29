@@ -31,40 +31,41 @@
 #include "configuration.h"
 #define SERIAL_SOFTWARE 1
 #define SERIAL_HARDWARE 2
-#if SERIAL == SERIAL_SOFTWARE
+#if SERIAL_CHOICE == SERIAL_SOFTWARE
 #include <SoftwareSerial.h>
 #endif
 #define HOST "NilanGW-%s" // Change this to whatever you like.
-#define MAXREGSIZE 26
-#define SENDINTERVAL 60000 // normally set to 180000 milliseconds = 3 minutes. Define as you like
+#define MAX_REG_SIZE 26
 #define VENTSET 1003
 #define RUNSET 1001
 #define MODESET 1002
 #define TEMPSET 1004
 #define PROGRAMSET 500
 
-#if SERIAL == SERIAL_SOFTWARE
+#if SERIAL_CHOICE == SERIAL_SOFTWARE
 SoftwareSerial SSerial(SERIAL_SOFTWARE_RX, SERIAL_SOFTWARE_TX); // RX, TX
 #endif
 
-const char *ssid = WIFISSID;
-const char *password = WIFIPASSWORD;
+const char *ssid = WIFI_SSID;
+const char *password = WIFI_PASSWORD;
 char chipid[12];
-const char *mqttserver = MQTTSERVER;
-const char *mqttusername = MQTTUSERNAME;
-const char *mqttpassword = MQTTPASSWORD;
+const char *mqttServer = MQTT_SERVER;
+const char *mqttUsername = MQTT_USERNAME;
+const char *mqttPassword = MQTT_PASSWORD;
 WiFiServer server(80);
 WiFiClient client;
-PubSubClient mqttclient(client);
-static long lastMsg = -SENDINTERVAL;
-static int16_t rsbuffer[MAXREGSIZE];
+PubSubClient mqttClient(client);
+long lastMsg = -MQTT_SEND_INTERVAL;
+long modbusCooldown = 0;   // Used to limit modbus read/write operations
+int modbusCooldownHit = 0; // Used to limit modbus read/write operations
+int16_t rsBuffer[MAX_REG_SIZE];
 ModbusMaster node;
 
 int16_t AlarmListNumber[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 70, 71, 90, 91, 92};
 String AlarmListText[] = {"NONE", "HARDWARE", "TIMEOUT", "FIRE", "PRESSURE", "DOOR", "DEFROST", "FROST", "FROST", "OVERTEMP", "OVERHEAT", "AIRFLOW", "THERMO", "BOILING", "SENSOR", "ROOM LOW", "SOFTWARE", "WATCHDOG", "CONFIG", "FILTER", "LEGIONEL", "POWER", "T AIR", "T WATER", "T HEAT", "MODEM", "INSTABUS", "T1SHORT", "T1OPEN", "T2SHORT", "T2OPEN", "T3SHORT", "T3OPEN", "T4SHORT", "T4OPEN", "T5SHORT", "T5OPEN", "T6SHORT", "T6OPEN", "T7SHORT", "T7OPEN", "T8SHORT", "T8OPEN", "T9SHORT", "T9OPEN", "T10SHORT", "T10OPEN", "T11SHORT", "T11OPEN", "T12SHORT", "T12OPEN", "T13SHORT", "T13OPEN", "T14SHORT", "T14OPEN", "T15SHORT", "T15OPEN", "T16SHORT", "T16OPEN", "ANODE", "EXCH INFO", "SLAVE IO", "OPT IO", "PRESET", "INSTABUS"};
 
 String req[4]; // operation, group, address, value
-enum reqtypes
+enum ReqTypes
 {
   reqtemp = 0,
   reqalarm,
@@ -88,10 +89,10 @@ enum reqtypes
 };
 
 String groups[] = {"temp", "alarm", "time", "control", "speed", "airtemp", "airflow", "airheat", "program", "user", "user2", "info", "inputairtemp", "app", "output", "display1", "display2", "display"};
-byte regsizes[] = {23, 10, 6, 8, 2, 6, 2, 0, 1, 6, 6, 14, 7, 4, 26, 4, 4, 1};
-int regaddresses[] = {200, 400, 300, 1000, 200, 1200, 1100, 0, 500, 600, 610, 100, 1200, 0, 100, 2002, 2007, 3000};
-byte regtypes[] = {8, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 2, 1, 4, 4, 8};
-char const *regnames[][MAXREGSIZE] = {
+byte regSizes[] = {23, 10, 6, 8, 2, 6, 2, 0, 1, 6, 6, 14, 7, 4, 26, 4, 4, 1};
+int regAddresses[] = {200, 400, 300, 1000, 200, 1200, 1100, 0, 500, 600, 610, 100, 1200, 0, 100, 2002, 2007, 3000};
+byte regTypes[] = {8, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 2, 1, 4, 4, 8};
+char const *regNames[][MAX_REG_SIZE] = {
     // temp
     {"T0_Controller", NULL, NULL, "T3_Exhaust", "T4_Outlet", NULL, NULL, "T7_Inlet", "T8_Outdoor", NULL, NULL, NULL, NULL, NULL, NULL, "T15_Room", NULL, NULL, NULL, NULL, NULL, "RH", NULL},
     // alarm
@@ -126,14 +127,14 @@ char const *regnames[][MAXREGSIZE] = {
     {"Text_1_2", "Text_3_4", "Text_5_6", "Text_7_8"},
     // display2
     {"Text_9_10", "Text_11_12", "Text_13_14", "Text_15_16"},
-    // airbypass
+    // air bypass
     {"AirBypass/IsOpen"}};
 
-char const *getName(reqtypes type, int address)
+char const *getName(ReqTypes type, int address)
 {
-  if (address >= 0 && address <= regsizes[type])
+  if (address >= 0 && address <= regSizes[type])
   {
-    return regnames[type][address];
+    return regNames[type][address];
   }
   return NULL;
 }
@@ -171,27 +172,27 @@ char ReadModbus(uint16_t addr, uint8_t sizer, int16_t *vals, int type)
 JsonObject HandleRequest(JsonDocument &doc)
 {
   JsonObject root = doc.to<JsonObject>();
-  reqtypes r = reqmax;
+  ReqTypes r = reqmax;
   if (req[1] != "")
   {
     for (int i = 0; i < reqmax; i++)
     {
       if (groups[i] == req[1])
       {
-        r = (reqtypes)i;
+        r = (ReqTypes)i;
       }
     }
   }
-  char type = regtypes[r];
+  char type = regTypes[r];
   if (req[0] == "read")
   {
     int address = 0;
     int nums = 0;
     char result = -1;
-    address = regaddresses[r];
-    nums = regsizes[r];
+    address = regAddresses[r];
+    nums = regSizes[r];
 
-    result = ReadModbus(address, nums, rsbuffer, type & 1);
+    result = ReadModbus(address, nums, rsBuffer, type & 1);
     if (result == 0)
     {
       root["status"] = "Modbus connection OK";
@@ -203,18 +204,19 @@ JsonObject HandleRequest(JsonDocument &doc)
           if ((type == 2 && i > 0) || type == 4)
           {
             String str = "";
-            str += (char)(rsbuffer[i] & 0x00ff);
-            str = (char)(rsbuffer[i] >> 8) + str;            // Remove leading space from one character string
+            str += (char)(rsBuffer[i] & 0x00ff);
+            str = (char)(rsBuffer[i] >> 8) + str;
+            // Remove leading space from one character string
             str.trim();
             root[name] = str;
           }
           else if (type == 8)
           {
-            root[name] = rsbuffer[i] / 100.0;
+            root[name] = rsBuffer[i] / 100.0;
           }
           else
           {
-            root[name] = rsbuffer[i];
+            root[name] = rsBuffer[i];
           }
         }
       }
@@ -223,8 +225,8 @@ JsonObject HandleRequest(JsonDocument &doc)
     {
       root["status"] = "Modbus connection failed";
     }
-    root["requestaddress"] = address;
-    root["requestnum"] = nums;
+    root["requestAddress"] = address;
+    root["requestNumber"] = nums;
   }
   else if (req[0] == "set" && req[2] != "" && req[3] != "")
   {
@@ -247,28 +249,34 @@ JsonObject HandleRequest(JsonDocument &doc)
   return root;
 }
 
-void mqttreconnect()
+void mqttReconnect()
 {
-  int numretries = 0;
-  while (!mqttclient.connected() && numretries < 3)
+  int numberRetries = 0;
+  while (!mqttClient.connected() && numberRetries < 3)
   {
-    if (mqttclient.connect(chipid, mqttusername, mqttpassword))
+    if (mqttClient.connect(chipid, mqttUsername, mqttPassword))
     {
-      mqttclient.subscribe("ventilation/ventset");
-      mqttclient.subscribe("ventilation/modeset");
-      mqttclient.subscribe("ventilation/runset");
-      mqttclient.subscribe("ventilation/tempset");
-      mqttclient.subscribe("ventilation/programset");
+      mqttClient.subscribe("ventilation/ventset");
+      mqttClient.subscribe("ventilation/modeset");
+      mqttClient.subscribe("ventilation/runset");
+      mqttClient.subscribe("ventilation/tempset");
+      mqttClient.subscribe("ventilation/programset");
     }
     else
     {
       delay(1000);
     }
-    numretries++;
+    numberRetries++;
+  }
+  if (numberRetries >= 3)
+  {
+    delay(5000);
+    // Give up and do a reboot
+    ESP.restart();
   }
 }
 
-void mqttcallback(char *topic, byte *payload, unsigned int length)
+void mqttCallback(char *topic, byte *payload, unsigned int length)
 {
   // Check if topic is equal to string
   if (strcmp(topic, "ventilation/ventset") == 0)
@@ -279,7 +287,7 @@ void mqttcallback(char *topic, byte *payload, unsigned int length)
       WriteModbus(VENTSET, speed);
     }
   }
-  if (strcmp(topic, "ventilation/modeset") == 0)
+  else if (strcmp(topic, "ventilation/modeset") == 0)
   {
     if (length == 1 && payload[0] >= '0' && payload[0] <= '4')
     {
@@ -287,7 +295,7 @@ void mqttcallback(char *topic, byte *payload, unsigned int length)
       WriteModbus(MODESET, mode);
     }
   }
-  if (strcmp(topic, "ventilation/runset") == 0)
+  else if (strcmp(topic, "ventilation/runset") == 0)
   {
     if (length == 1 && payload[0] >= '0' && payload[0] <= '1')
     {
@@ -295,7 +303,7 @@ void mqttcallback(char *topic, byte *payload, unsigned int length)
       WriteModbus(RUNSET, run);
     }
   }
-  if (strcmp(topic, "ventilation/tempset") == 0)
+  else if (strcmp(topic, "ventilation/tempset") == 0)
   {
     if (length == 4 && payload[0] >= '0' && payload[0] <= '2')
     {
@@ -307,7 +315,7 @@ void mqttcallback(char *topic, byte *payload, unsigned int length)
       WriteModbus(TEMPSET, str.toInt());
     }
   }
-  if (strcmp(topic, "ventilation/programset") == 0)
+  else if (strcmp(topic, "ventilation/programset") == 0)
   {
     if (length == 1 && payload[0] >= '0' && payload[0] <= '4')
     {
@@ -315,7 +323,7 @@ void mqttcallback(char *topic, byte *payload, unsigned int length)
       WriteModbus(PROGRAMSET, program);
     }
   }
-  lastMsg = -SENDINTERVAL;
+  lastMsg = -MQTT_SEND_INTERVAL;
 }
 
 bool readRequest(WiFiClient &client)
@@ -378,8 +386,6 @@ void setup()
 #endif
   delay(500);
   WiFi.hostname(host);
-  ArduinoOTA.setHostname(host);
-  WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   while (WiFi.waitForConnectResult() != WL_CONNECTED)
   {
@@ -390,36 +396,28 @@ void setup()
 #if USE_WIFI_LED
   digitalWrite(WIFI_LED, HIGH);
 #endif
-  ArduinoOTA.onStart([]() {});
-  ArduinoOTA.onEnd([]() {});
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {});
-  ArduinoOTA.onError([](ota_error_t error) {});
+  ArduinoOTA.setHostname(host);
   ArduinoOTA.begin();
   server.begin();
 
-#if SERIAL == SERIAL_SOFTWARE
+#if SERIAL_CHOICE == SERIAL_SOFTWARE
 #warning Compiling for software serial
-  SSerial.begin(19200, SERIAL_8E1);
-  node.begin(30, SSerial);
-#elif SERIAL == SERIAL_HARDWARE
+  SSerial.begin(19200, SWSERIAL_8E1);
+  node.begin(MODBUS_SLAVE_ADDRESS, SSerial);
+#elif SERIAL_CHOICE == SERIAL_HARDWARE
 #warning Compiling for hardware serial
   Serial.begin(19200, SERIAL_8E1);
-  node.begin(30, Serial);
+  node.begin(MODBUS_SLAVE_ADDRESS, Serial);
 #else
 #error hardware og serial serial port?
 #endif
 
-  mqttclient.setServer(mqttserver, 1883);
-  mqttclient.setCallback(mqttcallback);
+  mqttClient.setServer(mqttServer, 1883);
+  mqttClient.setCallback(mqttCallback);
 }
 
 void loop()
 {
-#ifdef DEBUG_TELNET
-  // handle Telnet connection for debugging
-  handleTelnet();
-#endif
-
   ArduinoOTA.handle();
   WiFiClient client = server.available();
   if (client)
@@ -434,189 +432,197 @@ void loop()
     client.stop();
   }
 
-  if (!mqttclient.connected())
+  if (!mqttClient.connected())
   {
-    mqttreconnect();
+    mqttReconnect();
   }
 
-  if (mqttclient.connected())
+  if (mqttClient.connected())
   {
-    mqttclient.loop();
+    mqttClient.loop();
     long now = millis();
-    if (now - lastMsg > SENDINTERVAL)
+    if (now - lastMsg > MQTT_SEND_INTERVAL)
     {
-      reqtypes rr[] = {reqtemp, reqcontrol, reqtime, reqoutput, reqspeed, reqalarm, reqinputairtemp, reqprogram, requser, reqdisplay, reqinfo}; // put another register in this line to subscribe
+      ReqTypes rr[] = {reqtemp, reqcontrol, reqtime, reqoutput, reqspeed, reqalarm, reqinputairtemp, reqprogram, requser, reqdisplay, reqinfo}; // put another register in this line to subscribe
       for (unsigned int i = 0; i < (sizeof(rr) / sizeof(rr[0])); i++)
       {
-        reqtypes r = rr[i];
-        char result = ReadModbus(regaddresses[r], regsizes[r], rsbuffer, regtypes[r] & 1);
+        ReqTypes r = rr[i];
+        char result = ReadModbus(regAddresses[r], regSizes[r], rsBuffer, regTypes[r]);
         if (result == 0)
         {
-          mqttclient.publish("ventilation/error/modbus/", "0"); // no error when connecting through modbus
-          for (int i = 0; i < regsizes[r]; i++)
+          mqttClient.publish("ventilation/error/modbus", "0"); // no error when connecting through modbus
+          for (int i = 0; i < regSizes[r]; i++)
           {
             char const *name = getName(r, i);
-            char numstr[10];
+            char numberString[10];
             if (name != NULL && strlen(name) > 0)
             {
-              String mqname;
+              String mqttTopic;
               switch (r)
               {
               case reqcontrol:
-                mqname = "ventilation/control/"; // Subscribe to the "control" register
-                itoa((rsbuffer[i]), numstr, 10);
+                mqttTopic = "ventilation/control/"; // Subscribe to the "control" register
+                itoa((rsBuffer[i]), numberString, 10);
                 break;
               case reqtime:
-                mqname = "ventilation/time/"; // Subscribe to the "output" register
-                itoa((rsbuffer[i]), numstr, 10);
+                mqttTopic = "ventilation/time/"; // Subscribe to the "output" register
+                itoa((rsBuffer[i]), numberString, 10);
                 break;
               case reqoutput:
-                mqname = "ventilation/output/"; // Subscribe to the "output" register
-                itoa((rsbuffer[i]), numstr, 10);
+                mqttTopic = "ventilation/output/"; // Subscribe to the "output" register
+                itoa((rsBuffer[i]), numberString, 10);
                 break;
               case reqdisplay:
-                mqname = "ventilation/display/"; // Subscribe to the "input display" register
-                itoa((rsbuffer[i]), numstr, 10);
+                mqttTopic = "ventilation/display/"; // Subscribe to the "input display" register
+                itoa((rsBuffer[i]), numberString, 10);
                 break;
               case reqspeed:
-                mqname = "ventilation/speed/"; // Subscribe to the "speed" register
-                itoa((rsbuffer[i]), numstr, 10);
+                mqttTopic = "ventilation/speed/"; // Subscribe to the "speed" register
+                itoa((rsBuffer[i]), numberString, 10);
                 break;
               case reqalarm:
-                mqname = "ventilation/alarm/"; // Subscribe to the "alarm" register
+                mqttTopic = "ventilation/alarm/"; // Subscribe to the "alarm" register
 
                 switch (i)
                 {
                 case 1: // Alarm.List_1_ID
                 case 4: // Alarm.List_2_ID
                 case 7: // Alarm.List_3_ID
-                  if (rsbuffer[i] > 0)
+                  if (rsBuffer[i] > 0)
                   {
-                    // itoa((rsbuffer[i]), numstr, 10);
-                    sprintf(numstr, "UNKNOWN"); // Preallocate unknown if no match if found
+                    // itoa((rsBuffer[i]), numberString, 10);
+                    sprintf(numberString, "UNKNOWN"); // Preallocate unknown if no match if found
                     for (unsigned int p = 0; p < (sizeof(AlarmListNumber)); p++)
                     {
-                      if (AlarmListNumber[p] == rsbuffer[i])
+                      if (AlarmListNumber[p] == rsBuffer[i])
                       {
-                        //   memset(numstr, 0, sizeof numstr);
-                        //   strcpy (numstr,AlarmListText[p].c_str());
-                        sprintf(numstr, AlarmListText[p].c_str());
+                        //   memset(numberString, 0, sizeof numberString);
+                        //   strcpy (numberString,AlarmListText[p].c_str());
+                        sprintf(numberString, AlarmListText[p].c_str());
                         break;
                       }
                     }
                   }
                   else
                   {
-                    sprintf(numstr, "None"); // No alarm, output None
+                    sprintf(numberString, "None"); // No alarm, output None
                   }
                   break;
                 case 2: // Alarm.List_1_Date
                 case 5: // Alarm.List_2_Date
                 case 8: // Alarm.List_3_Date
-                  if (rsbuffer[i] > 0)
+                  if (rsBuffer[i] > 0)
                   {
-                    sprintf(numstr, "%d", (rsbuffer[i] >> 9) + 1980);
-                    sprintf(numstr + strlen(numstr), "-%02d", (rsbuffer[i] & 0x1E0) >> 5);
-                    sprintf(numstr + strlen(numstr), "-%02d", (rsbuffer[i] & 0x1F));
+                    sprintf(numberString, "%d", (rsBuffer[i] >> 9) + 1980);
+                    sprintf(numberString + strlen(numberString), "-%02d", (rsBuffer[i] & 0x1E0) >> 5);
+                    sprintf(numberString + strlen(numberString), "-%02d", (rsBuffer[i] & 0x1F));
                   }
                   else
                   {
-                    sprintf(numstr, "N/A"); // No alarm, output N/A
+                    sprintf(numberString, "N/A"); // No alarm, output N/A
                   }
                   break;
                 case 3: // Alarm.List_1_Time
                 case 6: // Alarm.List_2_Time
                 case 9: // Alarm.List_3_Time
-                  if (rsbuffer[i] > 0)
+                  if (rsBuffer[i] > 0)
                   {
-                    sprintf(numstr, "%02d", rsbuffer[i] >> 11);
-                    sprintf(numstr + strlen(numstr), ":%02d", (rsbuffer[i] & 0x7E0) >> 5);
-                    sprintf(numstr + strlen(numstr), ":%02d", (rsbuffer[i] & 0x11F) * 2);
+                    sprintf(numberString, "%02d", rsBuffer[i] >> 11);
+                    sprintf(numberString + strlen(numberString), ":%02d", (rsBuffer[i] & 0x7E0) >> 5);
+                    sprintf(numberString + strlen(numberString), ":%02d", (rsBuffer[i] & 0x11F) * 2);
                   }
                   else
                   {
-                    sprintf(numstr, "N/A"); // No alarm, output N/A
+                    sprintf(numberString, "N/A"); // No alarm, output N/A
                   }
 
                   break;
                 default: // used for Status bit (case 0)
-                  itoa((rsbuffer[i]), numstr, 10);
+                  itoa((rsBuffer[i]), numberString, 10);
                 }
                 break;
               case reqinputairtemp:
-                mqname = "ventilation/inputairtemp/"; // Subscribe to the "inputairtemp" register
-                itoa((rsbuffer[i]), numstr, 10);
+                mqttTopic = "ventilation/inputairtemp/"; // Subscribe to the "inputairtemp" register
+                itoa((rsBuffer[i]), numberString, 10);
                 break;
               case reqprogram:
-                mqname = "ventilation/weekprogram/"; // Subscribe to the "week program" register
-                itoa((rsbuffer[i]), numstr, 10);
+                mqttTopic = "ventilation/weekprogram/"; // Subscribe to the "week program" register
+                itoa((rsBuffer[i]), numberString, 10);
                 break;
               case requser:
-                mqname = "ventilation/user/"; // Subscribe to the "user" register
-                itoa((rsbuffer[i]), numstr, 10);
+                mqttTopic = "ventilation/user/"; // Subscribe to the "user" register
+                itoa((rsBuffer[i]), numberString, 10);
+                break;
+              case requser2:
+                mqttTopic = "ventilation/user/"; // Subscribe to the "user2" register
+                itoa((rsBuffer[i]), numberString, 10);
                 break;
               case reqinfo:
-                mqname = "ventilation/info/"; // Subscribe to the "info" register
-                itoa((rsbuffer[i]), numstr, 10);
+                mqttTopic = "ventilation/info/"; // Subscribe to the "info" register
+                itoa((rsBuffer[i]), numberString, 10);
                 break;
               case reqtemp:
                 if (strncmp("RH", name, 2) == 0)
                 {
-                  mqname = "ventilation/moist/"; // Subscribe to moisture-level
+                  mqttTopic = "ventilation/moist/"; // Subscribe to moisture-level
                 }
                 else
                 {
-                  mqname = "ventilation/temp/"; // Subscribe to "temp" register
+                  mqttTopic = "ventilation/temp/"; // Subscribe to "temp" register
                 }
-                dtostrf((rsbuffer[i] / 100.0), 5, 2, numstr);
+                dtostrf((rsBuffer[i] / 100.0), 5, 2, numberString);
+                break;
+              default:
+                // If not all enumerations possibilities are handled then message are added to the unmapped topic
+                mqttTopic = "ventilation/unmapped/";
                 break;
               }
-              mqname += (char *)name;
-              mqttclient.publish(mqname.c_str(), numstr);
+              mqttTopic += (char *)name;
+              mqttClient.publish(mqttTopic.c_str(), numberString);
             }
           }
         }
         else
         {
-          mqttclient.publish("ventilation/error/modbus/", "1"); // error when connecting through modbus
+          mqttClient.publish("ventilation/error/modbus", "1"); // error when connecting through modbus
         }
       }
 
       // Handle text fields
-      reqtypes rr2[] = {reqdisplay1, reqdisplay2}; // put another register in this line to subscribe
+      ReqTypes rr2[] = {reqdisplay1, reqdisplay2}; // put another register in this line to subscribe
       for (unsigned int i = 0; i < (sizeof(rr2) / sizeof(rr2[0])); i++)
       {
-        reqtypes r = rr2[i];
+        ReqTypes r = rr2[i];
 
-        char result = ReadModbus(regaddresses[r], regsizes[r], rsbuffer, regtypes[r] & 1);
+        char result = ReadModbus(regAddresses[r], regSizes[r], rsBuffer, regTypes[r]);
         if (result == 0)
         {
           String text = "";
-          String mqname = "ventilation/text/";
+          String mqttTopic = "ventilation/text/";
 
-          for (int i = 0; i < regsizes[r]; i++)
+          for (unsigned int i = 0; i < regSizes[r]; i++)
           {
             char const *name = getName(r, i);
 
-            if ((rsbuffer[i] & 0x00ff) == 0xDF)
+            if ((rsBuffer[i] & 0x00ff) == 0xDF)
             {
               text += (char)0x20; // replace degree sign with space
             }
             else
             {
-              text += (char)(rsbuffer[i] & 0x00ff);
+              text += (char)(rsBuffer[i] & 0x00ff);
             }
-            if ((rsbuffer[i] >> 8) == 0xDF)
+            if ((rsBuffer[i] >> 8) == 0xDF)
             {
               text += (char)0x20; // replace degree sign with space
             }
             else
             {
-              text += (char)(rsbuffer[i] >> 8);
+              text += (char)(rsBuffer[i] >> 8);
             }
-            mqname += (char *)name;
+            mqttTopic += (char *)name;
           }
-          mqttclient.publish(mqname.c_str(), text.c_str());
+          mqttClient.publish(mqttTopic.c_str(), text.c_str());
         }
       }
       lastMsg = now;
