@@ -68,7 +68,9 @@ String AlarmListText[] = {"NONE", "HARDWARE", "TIMEOUT", "FIRE", "PRESSURE", "DO
 String req[4]; // operation, group, address, value
 enum ReqTypes
 {
-  reqtemp = 0,
+  reqtemp1 = 0,
+  reqtemp2,
+  reqtemp3,
   reqalarm,
   reqtime,
   reqcontrol,
@@ -89,13 +91,26 @@ enum ReqTypes
   reqmax
 };
 
-String groups[] = {"temp", "alarm", "time", "control", "speed", "airtemp", "airflow", "airheat", "program", "user", "user2", "info", "inputairtemp", "app", "output", "display1", "display2", "display"};
-byte regSizes[] = {23, 10, 6, 8, 2, 6, 2, 0, 1, 6, 6, 14, 7, 4, 26, 4, 4, 1};
-int regAddresses[] = {200, 400, 300, 1000, 200, 1200, 1100, 0, 500, 600, 610, 100, 1200, 0, 100, 2002, 2007, 3000};
-byte regTypes[] = {8, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 2, 1, 4, 4, 8};
+String groups[] = {"temp1", "temp2", "temp3", "alarm", "time", "control", "speed", "airtemp", "airflow", "airheat", "program", "user", "user2", "info", "inputairtemp", "app", "output", "display1", "display2", "display"};
+// byte regSizes[] = {23, 10, 6, 8, 2, 6, 2, 0, 1, 6, 6, 14, 7, 4, 26, 4, 4, 1};
+
+// Start address to read from
+int regAddresses[] = {203, 207, 221, 400, 300, 1000, 200, 1200, 1100, 0, 500, 600, 610, 100, 1200, 0, 100, 2002, 2007, 3000};
+
+// How many values to read from based on start address
+byte regSizes[] = {2, 2, 1, 10, 6, 8, 2, 6, 2, 0, 1, 6, 6, 14, 7, 4, 26, 4, 4, 1};
+
+// 0=raw, 1=x, 2 = return 2 characters ASCII,
+// 4=xx, 8= return float dived by 1000,
+byte regTypes[] = {8, 8, 8, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 2, 1, 4, 4, 8};
+
+// Text translation of incoming data of the given address
 char const *regNames[][MAX_REG_SIZE] = {
     // temp
-    {"T0_Controller", NULL, NULL, "T3_Exhaust", "T4_Outlet", NULL, NULL, "T7_Inlet", "T8_Outdoor", NULL, NULL, NULL, NULL, NULL, NULL, "T15_Room", NULL, NULL, NULL, NULL, NULL, "RH", NULL},
+    // {"T0_Controller", "T1_Intake", NULL, "T3_Exhaust", "T4_Outlet", NULL, NULL, "T7_Inlet", "T8_Outdoor", NULL, NULL, NULL, NULL, NULL, NULL, "T15_Room", NULL, NULL, NULL, NULL, NULL, "RH", NULL},
+    {"T3_Exhaust", "T4_Outlet"},
+    {"T7_Inlet", "T8_Outdoor", NULL, NULL, NULL, NULL, NULL, NULL, "T15_Room", NULL, NULL, NULL, NULL, NULL, "RH", NULL},
+    {"RH"},
     // alarm
     {"Status", "List_1_ID", "List_1_Date", "List_1_Time", "List_2_ID", "List_2_Date", "List_2_Time", "List_3_ID", "List_3_Date", "List_3_Time"},
     // time
@@ -157,7 +172,7 @@ void modbusCool(int coolDownTimeMS)
   }
   else if (modbusCooldownHit > 0)
   {
-    modbusCooldownHit=0;
+    modbusCooldownHit = 0;
   }
   modbusCooldown = millis() + coolDownTimeMS;
 }
@@ -350,7 +365,6 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
       int16_t speed = payload[0] - '0';
       WriteModbus(VENTSET, speed);
       mqttClient.publish("ventilation/ventset", "", true);
-
     }
   }
   else if (strcmp(topic, "ventilation/modeset") == 0)
@@ -541,7 +555,8 @@ void loop()
     long now = millis();
     if (now - lastMsg > MQTT_SEND_INTERVAL)
     {
-      ReqTypes rr[] = {reqtemp, reqcontrol, reqtime, reqoutput, reqspeed, reqalarm, reqinputairtemp, reqprogram, requser, reqdisplay, reqinfo}; // put another register in this line to subscribe
+      //  ReqTypes rr[] = {reqtemp, reqcontrol, reqtime, reqoutput, reqspeed, reqalarm, reqinputairtemp, reqprogram, requser, reqdisplay, reqinfo}; // put another register in this line to subscribe
+      ReqTypes rr[] = {reqtemp1, reqtemp2, reqtemp3, reqcontrol, reqalarm, reqinputairtemp, reqprogram, reqdisplay, requser}; // put another register in this line to subscribe
       for (unsigned int i = 0; i < (sizeof(rr) / sizeof(rr[0])); i++)
       {
         ReqTypes r = rr[i];
@@ -659,7 +674,29 @@ void loop()
                 mqttTopic = "ventilation/info/"; // Subscribe to the "info" register
                 itoa((rsBuffer[i]), numberString, 10);
                 break;
-              case reqtemp:
+              case reqtemp1:
+                if (strncmp("RH", name, 2) == 0)
+                {
+                  mqttTopic = "ventilation/moist/"; // Subscribe to moisture-level
+                }
+                else
+                {
+                  mqttTopic = "ventilation/temp/"; // Subscribe to "temp" register
+                }
+                dtostrf((rsBuffer[i] / 100.0), 5, 2, numberString);
+                break;
+              case reqtemp2:
+                if (strncmp("RH", name, 2) == 0)
+                {
+                  mqttTopic = "ventilation/moist/"; // Subscribe to moisture-level
+                }
+                else
+                {
+                  mqttTopic = "ventilation/temp/"; // Subscribe to "temp" register
+                }
+                dtostrf((rsBuffer[i] / 100.0), 5, 2, numberString);
+                break;
+              case reqtemp3:
                 if (strncmp("RH", name, 2) == 0)
                 {
                   mqttTopic = "ventilation/moist/"; // Subscribe to moisture-level
@@ -685,48 +722,10 @@ void loop()
           mqttClient.publish("ventilation/error/modbus", "1"); // error when connecting through modbus
         }
       }
-
-      // Handle text fields
-      ReqTypes rr2[] = {reqdisplay1, reqdisplay2}; // put another register in this line to subscribe
-      for (unsigned int i = 0; i < (sizeof(rr2) / sizeof(rr2[0])); i++)
-      {
-        ReqTypes r = rr2[i];
-
-        char result = ReadModbus(regAddresses[r], regSizes[r], rsBuffer, regTypes[r]);
-        if (result == 0)
-        {
-          String text = "";
-          String mqttTopic = "ventilation/text/";
-
-          for (unsigned int i = 0; i < regSizes[r]; i++)
-          {
-            char const *name = getName(r, i);
-
-            if ((rsBuffer[i] & 0x00ff) == 0xDF)
-            {
-              text += (char)0x20; // replace degree sign with space
-            }
-            else
-            {
-              text += (char)(rsBuffer[i] & 0x00ff);
-            }
-            if ((rsBuffer[i] >> 8) == 0xDF)
-            {
-              text += (char)0x20; // replace degree sign with space
-            }
-            else
-            {
-              text += (char)(rsBuffer[i] >> 8);
-            }
-            mqttTopic += (char *)name;
-          }
-          mqttClient.publish(mqttTopic.c_str(), text.c_str());
-        }
-      }
       lastMsg = now;
       if (now > (long)1288490187)
       {
-        // Fix to make sure the command millis() dont overflow. This happends after 50 days and would mess up some logic above
+        // Fix to make sure the command millis() dont overflow. This happens after 50 days and would mess up some logic above
         // Reboot if ESP has been running for approximately 30 days.
         ESP.restart();
       }
