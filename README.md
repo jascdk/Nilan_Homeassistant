@@ -1,6 +1,8 @@
 # Unofficial gateway for Nilan ventilation system
 
-This little cool project lets you use you lets you control and read values from your Nilan air vent system. Used with Nilan Comfort 300 LR combined with the CTS602 panel. And should be compatible with other models
+This little cool project lets you use you lets you control and read values from your Nilan air vent system. Used with Nilan Comfort 300 LR combined with the CTS602 panel. And should be compatible with other models.
+
+Can be used with Openhab, Home Assistant, Node-red or anything else your heat desires.
 
 ![SVG preview of system](images/overview.svg)
 
@@ -77,8 +79,10 @@ You can use both a hardware interface or a software one. Both should give you th
 Connect Tx of ESP to Rx on RS485 board. And Rx of ESP to Tx of RS485 board.
 
 RS485 I used: [MAX3485 Module TTL To RS485 Module MCU](https://www.aliexpress.com/item/32828100565.html)
-![alt](images/RS485-board.JPG)
+
+![RS485-board.JPG](images/RS485-board.JPG)
 
 This is my setup with the Nilan HMI still connected and working fine:
-![alt](images/connection.JPG)
+
+![connection.JPG](images/connection.JPG)
 

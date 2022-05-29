@@ -19,8 +19,6 @@
      "PubSubClient" by Nick O'Leary https://github.com/knolleary/pubsubclient
 
   Project inspired by https://github.com/DanGunvald/NilanModbus
-
-  Join this Danish Facebook Page for inspiration :) https://www.facebook.com/groups/667765647316443/
 */
 
 #include <ArduinoJson.h>
@@ -525,7 +523,7 @@ void setup()
   mqttClient.setServer(mqttServer, 1883);
   mqttClient.setCallback(mqttCallback);
   mqttReconnect();
-  mqttClient.publish("ventilation/gateway/boot", String(millis()).c_str()); // error when connecting through modbus
+  mqttClient.publish("ventilation/gateway/boot", String(millis()).c_str());
 }
 
 void loop()
