@@ -10,7 +10,6 @@
 // WIFI settings
 #define WIFI_SSID     "XX" // Put in your SSID 
 #define WIFI_PASSWORD "XX" // Put in your SSID Password 
-#define CUSTOM_HOSTNAME "Nilan_MQTT" // Hostname of the ESP8266 so that it's easier to find in your DHCP range
 
 // LED settings
 #define WIFI_LED LED_BUILTIN // Blue led on NodeMCU
