@@ -28,7 +28,7 @@ You can get some json values from the Nilan by calling to it via HTTP. Just use 
 
 e.g
 
-`http://10.0.1.16/read/app` This is a great test info you got a modbus connection as the reads from the safest area of the modbus index. Other commands might fail as controller don't know the status of the requested index.
+`http://10.0.1.16/read/app` This is a great starter to give you info about the modbus connection being ok as this reads from the safest area of the modbus registers. Other commands might fail as controller don't know the status of the requested index e.g. if sensor is not connected or optional board is not connected.
 
 `http://10.0.1.16/get/610/6/1` Will return read values of addresses 610-615 in holding register range. 
 
@@ -60,7 +60,7 @@ Here are all commands you are able to send back for controlling it. I recommend 
 |`ventilation/runset`| 0-1 | User on / off select (equal to ON/OFF keys) |
 |`ventilation/tempset`| 500-2500 | Set temperature the celsius * 100 |
 |`ventilation/programset`| 0 - 4 | Start week program index |
-|`ventilation/gateway/update`| 1 | Gateway has OTA active always but can be hard to reash if some but in config is made. This puts gateway into OTA update mode for 60  seconds.  |
+|`ventilation/gateway/update`| 1 | Gateway has OTA active always but can be hard to reach if some but in config is made. This puts gateway into OTA update mode for 60  seconds.  |
 |`ventilation/gateway/reboot`| 1 | Reboots gateway |
 
 
@@ -71,7 +71,7 @@ Should run on most ESP8266 boards like: wemos D1 mini or nodeMCU.
 Edit configuration.h file to your liking including settings for wifi and mqtt broker.
 
 ## Upload to hardware
-I recommend using platform IO https://platformio.org/ inside Visual Studio Code as depenencies will be downloaded automatic i most cases due to the `platformio.ini` file.
+I recommend using platform IO https://platformio.org/ inside Visual Studio Code as dependencies will be downloaded automatic i most cases due to the `platformio.ini` file.
 
 ## Make electrical connection
 You can use both a hardware interface or a software one. Both should give you the same result. In theory they both should give the same result but I tent to use the hardware one.

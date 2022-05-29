@@ -3,7 +3,8 @@
         "chipid",
         "dtostrf",
         "Modbus",
-        "Openhab"
+        "Openhab",
+        "platformio"
     ],
     "cSpell.ignoreWords": [
         "Gunvald",
