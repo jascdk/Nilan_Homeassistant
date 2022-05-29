@@ -204,8 +204,7 @@ JsonObject HandleRequest(JsonDocument &doc)
           {
             String str = "";
             str += (char)(rsbuffer[i] & 0x00ff);
-            str += (char)(rsbuffer[i] >> 8);
-            // Remove leading space from one character string
+            str = (char)(rsbuffer[i] >> 8) + str;            // Remove leading space from one character string
             str.trim();
             root[name] = str;
           }
