@@ -1,0 +1,6 @@
+Frame label="Ventilation" {
+Switch item=nilanrun label="Tændt"
+Selection item=nilanmode label="Funktion" mappings=[0= "Off", "1"="Heat", "2" = "Cool", 3 = "Auto", 4 = "Service"]
+Selection item=nilantemp label="Temperatur" mappings=[1900="19", 2200="22", 2500="25"]
+Selection item=nilanvent label="Hastighed" mappings=[0="0",1="1",2="2",3="3",4="4"]
+}
