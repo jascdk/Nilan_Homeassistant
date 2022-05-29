@@ -32,7 +32,8 @@
 #define SERIAL_SOFTWARE 1
 #define SERIAL_HARDWARE 2
 #if SERIAL_CHOICE == SERIAL_SOFTWARE
-#include <SoftwareSerial.h>
+// for some reason this library keeps beeing included when building
+// #include <SoftwareSerial.h>
 #endif
 #define HOST "NilanGW-%s" // Change this to whatever you like.
 #define MAX_REG_SIZE 26
@@ -139,17 +140,43 @@ char const *getName(ReqTypes type, int address)
   return NULL;
 }
 
+void modbusCool(int coolDownTimeMS)
+{
+  // Fix for breaking out of modbus error loop
+  if ((long)millis() < (long)modbusCooldown)
+  {
+    if (modbusCooldownHit > 50)
+    {
+      ESP.reset();
+    }
+    modbusCooldownHit++;
+    while ((long)millis() < (long)modbusCooldown)
+    {
+      delay(20);
+    }
+  }
+  else if (modbusCooldownHit > 0)
+  {
+    modbusCooldownHit=0;
+  }
+  modbusCooldown = millis() + coolDownTimeMS;
+}
+
 char WriteModbus(uint16_t addr, int16_t val)
 {
+  modbusCool(200);
   node.setTransmitBuffer(0, val);
   char result = 0;
   result = node.writeMultipleRegisters(addr, 1);
   return result;
 }
+
 char ReadModbus(uint16_t addr, uint8_t sizer, int16_t *vals, int type)
 {
+  modbusCool(200);
   char result = 0;
-  switch (type)
+  // Make sure type is either 0 or 1
+  switch (type & 1)
   {
   case 0:
     result = node.readInputRegisters(addr, sizer);
@@ -192,7 +219,7 @@ JsonObject HandleRequest(JsonDocument &doc)
     address = regAddresses[r];
     nums = regSizes[r];
 
-    result = ReadModbus(address, nums, rsBuffer, type & 1);
+    result = ReadModbus(address, nums, rsBuffer, type);
     if (result == 0)
     {
       root["status"] = "Modbus connection OK";
@@ -237,11 +264,45 @@ JsonObject HandleRequest(JsonDocument &doc)
     root["address"] = address;
     root["value"] = value;
   }
-  else if (req[0] == "help")
+  else if (req[0] == "get" && req[1] >= "0" && req[2] > "0")
+  {
+    int address = atoi(req[1].c_str());
+    int nums = atoi(req[2].c_str());
+    int type = atoi(req[3].c_str());
+    char result = ReadModbus(address, nums, rsBuffer, type);
+    if (result == 0)
+    // if (true)
+    {
+      root["status"] = "Modbus connection OK";
+      for (int i = 0; i < nums; i++)
+      {
+        root[String("address" + String(address + i))] = rsBuffer[i];
+      }
+    }
+    else
+    {
+      root["status"] = "Modbus connection failed";
+    }
+    root["result"] = result;
+    root["requestAddress"] = address;
+    root["requestNumber"] = nums;
+    switch (type)
+    {
+    case 0:
+      root["type"] = "Input register";
+      break;
+    case 1:
+      root["type"] = "Holding register";
+      break;
+    default:
+      root["type"] = "Should be 0 or 1 for input/holding register";
+    }
+  }
+  else if (req[0] == "help" || req[0] == "")
   {
     for (int i = 0; i < reqmax; i++)
     {
-      root[groups[i]] = 0;
+      root[groups[i]] = "http://../read/" + groups[i];
     }
   }
   root["operation"] = req[0];
@@ -385,6 +446,7 @@ void setup()
   digitalWrite(WIFI_LED, LOW); // Reverse meaning. LOW=LED ON
 #endif
   delay(500);
+  WiFi.mode(WIFI_STA);
   WiFi.hostname(host);
   WiFi.begin(ssid, password);
   while (WiFi.waitForConnectResult() != WL_CONNECTED)
@@ -626,6 +688,12 @@ void loop()
         }
       }
       lastMsg = now;
+      if (now > (long)1288490187)
+      {
+        // Fix to make sure the command millis() dont overflow. This happends after 50 days and would mess up some logic above
+        // Reboot if ESP has been running for approximately 30 days.
+        ESP.restart();
+      }
     }
   }
 }
