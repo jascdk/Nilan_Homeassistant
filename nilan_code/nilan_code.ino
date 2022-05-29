@@ -377,6 +377,7 @@ void setup()
   digitalWrite(WIFI_LED, LOW); // Reverse meaning. LOW=LED ON
 #endif
   delay(500);
+  WiFi.mode(WIFI_STA);
   WiFi.hostname(host);
   ArduinoOTA.setHostname(host);
   WiFi.mode(WIFI_STA);
