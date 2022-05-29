@@ -322,6 +322,9 @@ void mqttReconnect()
       mqttClient.subscribe("ventilation/runset");
       mqttClient.subscribe("ventilation/tempset");
       mqttClient.subscribe("ventilation/programset");
+      mqttClient.subscribe("ventilation/gateway/update");
+      mqttClient.subscribe("ventilation/gateway/reboot");
+      return;
     }
     else
     {
@@ -346,6 +349,8 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
     {
       int16_t speed = payload[0] - '0';
       WriteModbus(VENTSET, speed);
+      mqttClient.publish("ventilation/ventset", "", true);
+
     }
   }
   else if (strcmp(topic, "ventilation/modeset") == 0)
@@ -354,6 +359,7 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
     {
       int16_t mode = payload[0] - '0';
       WriteModbus(MODESET, mode);
+      mqttClient.publish("ventilation/modeset", "", true);
     }
   }
   else if (strcmp(topic, "ventilation/runset") == 0)
@@ -362,6 +368,7 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
     {
       int16_t run = payload[0] - '0';
       WriteModbus(RUNSET, run);
+      mqttClient.publish("ventilation/runset", "", true);
     }
   }
   else if (strcmp(topic, "ventilation/tempset") == 0)
@@ -374,6 +381,7 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
         str += (char)payload[i];
       }
       WriteModbus(TEMPSET, str.toInt());
+      mqttClient.publish("ventilation/tempset", "", true);
     }
   }
   else if (strcmp(topic, "ventilation/programset") == 0)
@@ -382,6 +390,32 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
     {
       int16_t program = payload[0] - '0';
       WriteModbus(PROGRAMSET, program);
+      mqttClient.publish("ventilation/programset", "", true);
+    }
+  }
+  else if (strcmp(topic, "ventilation/gateway/update") == 0)
+  {
+    // Enter mode in 60 seconds to prioritize OTA
+    if (payload[0] == '1')
+    {
+      mqttClient.publish("ventilation/gateway/update", "2");
+      for (unsigned int i = 0; i < 300; i++)
+      {
+        ArduinoOTA.handle();
+        delay(200);
+      }
+      if (!mqttClient.connected())
+      {
+        mqttReconnect();
+      }
+    }
+    mqttClient.publish("ventilation/gateway/update", "0");
+  }
+  else if (strcmp(topic, "ventilation/gateway/reboot") == 0)
+  {
+    if (payload[0] == '1')
+    {
+      mqttClient.publish("ventilation/gateway/reboot", "0");
     }
   }
   lastMsg = -MQTT_SEND_INTERVAL;
@@ -476,6 +510,8 @@ void setup()
 
   mqttClient.setServer(mqttServer, 1883);
   mqttClient.setCallback(mqttCallback);
+  mqttReconnect();
+  mqttClient.publish("ventilation/gateway/boot", String(millis()).c_str()); // error when connecting through modbus
 }
 
 void loop()
