@@ -90,13 +90,13 @@ enum ReqTypes
 };
 
 String groups[] = {"temp1", "temp2", "temp3", "alarm", "time", "control", "speed", "airtemp", "airflow", "airheat", "program", "user", "user2", "info", "inputairtemp", "app", "output", "display1", "display2", "display"};
-// byte regSizes[] = {23, 10, 6, 8, 2, 6, 2, 0, 1, 6, 6, 14, 7, 4, 26, 4, 4, 1};
 
 // Start address to read from
 int regAddresses[] = {203, 207, 221, 400, 300, 1000, 200, 1200, 1100, 0, 500, 600, 610, 100, 1200, 0, 100, 2002, 2007, 3000};
 
 // How many values to read from based on start address
-byte regSizes[] = {2, 2, 1, 10, 6, 8, 2, 6, 2, 0, 1, 6, 6, 14, 7, 4, 26, 4, 4, 1};
+// byte regSizes[] = {23, 10, 6, 8, 2, 6, 2, 0, 1, 6, 6, 14, 7, 4, 26, 4, 4, 1};
+byte regSizes[] = {2, 2, 1, 10, 6, 8, 2, 6, 2, 0, 1, 6, 6, 14, 4, 4, 26, 4, 4, 1};
 
 // 0=raw, 1=x, 2 = return 2 characters ASCII,
 // 4=xx, 8= return float dived by 1000,
@@ -328,8 +328,9 @@ void mqttReconnect()
   int numberRetries = 0;
   while (!mqttClient.connected() && numberRetries < 3)
   {
-    if (mqttClient.connect(chipid, mqttUsername, mqttPassword))
+    if (mqttClient.connect(chipid, mqttUsername, mqttPassword, "device/ventilation/alive", 1,true, "0"))
     {
+      mqttClient.publish("device/ventilation/alive", "1", true);
       mqttClient.subscribe("ventilation/ventset");
       mqttClient.subscribe("ventilation/modeset");
       mqttClient.subscribe("ventilation/runset");
