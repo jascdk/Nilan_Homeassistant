@@ -96,7 +96,7 @@ int regAddresses[] = {203, 207, 221, 400, 300, 1000, 200, 1200, 1100, 0, 500, 60
 
 // How many values to read from based on start address
 // byte regSizes[] = {23, 10, 6, 8, 2, 6, 2, 0, 1, 6, 6, 14, 7, 4, 26, 4, 4, 1};
-byte regSizes[] = {2, 2, 1, 10, 6, 8, 2, 6, 2, 0, 1, 6, 6, 14, 4, 4, 26, 4, 4, 1};
+byte regSizes[] = {2, 2, 1, 10, 6, 8, 2, 6, 2, 0, 1, 6, 6, 14, 1, 4, 26, 4, 4, 1};
 
 // 0=raw, 1=x, 2 = return 2 characters ASCII,
 // 4=xx, 8= return float dived by 1000,
