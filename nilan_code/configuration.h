@@ -17,9 +17,9 @@
 #define USE_WIFI_LED false // if 'true', the blue led in a NodeMCU will blink during connection,
                            // and glow solid once connected
 // MQTT settings
-#define MQTTSERVER   "XX" // Put in the IP adresse of your MQTT broker
+#define MQTTSERVER   "XX" // Put in the IP addresses of your MQTT broker
 #define MQTTUSERNAME NULL // Username for the MQTT broker (NULL if no username is required)
-#define MQTTPASSWORD NULL // Passowrd for the MQTT broker (NULL if no password is required)
+#define MQTTPASSWORD NULL // Password for the MQTT broker (NULL if no password is required)
 
 // Serial port
 #define SERIAL       SERIAL_HARDWARE // SERIAL_SOFTWARE or SERIAL_HARDWARE
