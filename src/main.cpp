@@ -52,8 +52,9 @@ const char *mqttServer = MQTT_SERVER;
 const char *mqttUsername = MQTT_USERNAME;
 const char *mqttPassword = MQTT_PASSWORD;
 WiFiServer server(80);
-WiFiClient client;
-PubSubClient mqttClient(client);
+WiFiClient wifiClient;
+String IPaddress;
+PubSubClient mqttClient(wifiClient);
 long lastMsg = -MQTT_SEND_INTERVAL;
 long modbusCooldown = 0;   // Used to limit modbus read/write operations
 int modbusCooldownHit = 0; // Used to limit modbus read/write operations
@@ -525,6 +526,8 @@ void setup()
   mqttClient.setCallback(mqttCallback);
   mqttReconnect();
   mqttClient.publish("ventilation/gateway/boot", String(millis()).c_str());
+  IPaddress =  WiFi.localIP().toString();
+  mqttClient.publish("ventilation/gateway/ip", IPaddress.c_str());
 }
 
 void loop()
