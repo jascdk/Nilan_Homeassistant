@@ -47,7 +47,7 @@ SoftwareSerial SSerial(SERIAL_SOFTWARE_RX, SERIAL_SOFTWARE_TX); // RX, TX
 
 const char *ssid = WIFI_SSID;
 const char *password = WIFI_PASSWORD;
-char chipid[12];
+char chipID[12];
 const char *mqttServer = MQTT_SERVER;
 const char *mqttUsername = MQTT_USERNAME;
 const char *mqttPassword = MQTT_PASSWORD;
@@ -329,7 +329,7 @@ void mqttReconnect()
   int numberRetries = 0;
   while (!mqttClient.connected() && numberRetries < 3)
   {
-    if (mqttClient.connect(chipid, mqttUsername, mqttPassword, "device/ventilation/alive", 1,true, "0"))
+    if (mqttClient.connect(chipID, mqttUsername, mqttPassword, "device/ventilation/alive", 1,true, "0"))
     {
       mqttClient.publish("device/ventilation/alive", "1", true);
       mqttClient.subscribe("ventilation/ventset");
@@ -487,8 +487,8 @@ void writeResponse(WiFiClient &client, const JsonDocument &doc)
 void setup()
 {
   char host[64];
-  sprintf(chipid, "%08X", ESP.getChipId());
-  sprintf(host, HOST, chipid);
+  sprintf(chipID, "%08X", ESP.getChipId());
+  sprintf(host, HOST, chipID);
 #if USE_WIFI_LED
   pinMode(WIFI_LED, OUTPUT);
   digitalWrite(WIFI_LED, LOW); // Reverse meaning. LOW=LED ON
