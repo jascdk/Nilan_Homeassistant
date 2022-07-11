@@ -40,6 +40,19 @@
 #define MODESET 1002
 #define TEMPSET 1004
 #define PROGRAMSET 500
+#define COMPILED __DATE__ " " __TIME__
+
+#define DEBUG_SCAN_TIME // Turn on/off debugging of scan times
+#ifdef DEBUG_SCAN_TIME
+// Scan time variables
+#define SCAN_COUNT_MAX 20000
+int scanTime = -1; // Used to measure scan times of program
+int scanLast = -1;
+int scanMax = -1;
+int scanMin = 5000; // Set to a fake high number
+double scanMovingAvr = 20;
+int scanCount = 0;
+#endif
 
 #if SERIAL_CHOICE == SERIAL_SOFTWARE
 SoftwareSerial SSerial(SERIAL_SOFTWARE_RX, SERIAL_SOFTWARE_TX); // RX, TX
@@ -329,16 +342,10 @@ void mqttReconnect()
   int numberRetries = 0;
   while (!mqttClient.connected() && numberRetries < 3)
   {
-    if (mqttClient.connect(chipID, mqttUsername, mqttPassword, "device/ventilation/alive", 1,true, "0"))
+    if (mqttClient.connect(chipID, mqttUsername, mqttPassword, "ventilation/alive", 1, true, "0"))
     {
-      mqttClient.publish("device/ventilation/alive", "1", true);
-      mqttClient.subscribe("ventilation/ventset");
-      mqttClient.subscribe("ventilation/modeset");
-      mqttClient.subscribe("ventilation/runset");
-      mqttClient.subscribe("ventilation/tempset");
-      mqttClient.subscribe("ventilation/programset");
-      mqttClient.subscribe("ventilation/gateway/update");
-      mqttClient.subscribe("ventilation/gateway/reboot");
+      mqttClient.publish("ventilation/alive", "1", true);
+      mqttClient.subscribe("ventilation/cmd/+");
       return;
     }
     else
@@ -357,62 +364,62 @@ void mqttReconnect()
 
 void mqttCallback(char *topic, byte *payload, unsigned int length)
 {
+  String inputString;
+  for (unsigned int i = 0; i < length; i++)
+  {
+    inputString += (char)payload[i];
+  }
   // Check if topic is equal to string
-  if (strcmp(topic, "ventilation/ventset") == 0)
+  if (strcmp(topic, "ventilation/cmd/ventset") == 0)
   {
     if (length == 1 && payload[0] >= '0' && payload[0] <= '4')
     {
       int16_t speed = payload[0] - '0';
       WriteModbus(VENTSET, speed);
-      mqttClient.publish("ventilation/ventset", "", true);
+      mqttClient.publish("ventilation/cmd/ventset", "", true);
     }
   }
-  else if (strcmp(topic, "ventilation/modeset") == 0)
+  else if (strcmp(topic, "ventilation/cmd/modeset") == 0)
   {
     if (length == 1 && payload[0] >= '0' && payload[0] <= '4')
     {
       int16_t mode = payload[0] - '0';
       WriteModbus(MODESET, mode);
-      mqttClient.publish("ventilation/modeset", "", true);
+      mqttClient.publish("ventilation/cmd/modeset", "", true);
     }
   }
-  else if (strcmp(topic, "ventilation/runset") == 0)
+  else if (strcmp(topic, "ventilation/cmd/runset") == 0)
   {
     if (length == 1 && payload[0] >= '0' && payload[0] <= '1')
     {
       int16_t run = payload[0] - '0';
       WriteModbus(RUNSET, run);
-      mqttClient.publish("ventilation/runset", "", true);
+      mqttClient.publish("ventilation/cmd/runset", "", true);
     }
   }
-  else if (strcmp(topic, "ventilation/tempset") == 0)
+  else if (strcmp(topic, "ventilation/cmd/tempset") == 0)
   {
     if (length == 4 && payload[0] >= '0' && payload[0] <= '2')
     {
-      String str;
-      for (unsigned int i = 0; i < length; i++)
-      {
-        str += (char)payload[i];
-      }
-      WriteModbus(TEMPSET, str.toInt());
-      mqttClient.publish("ventilation/tempset", "", true);
+      WriteModbus(TEMPSET, inputString.toInt());
+      mqttClient.publish("ventilation/cmd/tempset", "", true);
     }
   }
-  else if (strcmp(topic, "ventilation/programset") == 0)
+  else if (strcmp(topic, "ventilation/cmd/programset") == 0)
   {
     if (length == 1 && payload[0] >= '0' && payload[0] <= '4')
     {
       int16_t program = payload[0] - '0';
       WriteModbus(PROGRAMSET, program);
-      mqttClient.publish("ventilation/programset", "", true);
+      mqttClient.publish("ventilation/cmd/programset", "", true);
     }
   }
-  else if (strcmp(topic, "ventilation/gateway/update") == 0)
+  else if (strcmp(topic, "ventilation/cmd/update") == 0)
   {
     // Enter mode in 60 seconds to prioritize OTA
     if (payload[0] == '1')
     {
-      mqttClient.publish("ventilation/gateway/update", "2");
+      mqttClient.publish("ventilation/cmd/update", "2");
       for (unsigned int i = 0; i < 300; i++)
       {
         ArduinoOTA.handle();
@@ -423,14 +430,26 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
         mqttReconnect();
       }
     }
-    mqttClient.publish("ventilation/gateway/update", "0");
+    mqttClient.publish("ventilation/cmd/update", "0");
   }
-  else if (strcmp(topic, "ventilation/gateway/reboot") == 0)
+  else if (strcmp(topic, "ventilation/cmd/reboot") == 0)
   {
     if (payload[0] == '1')
     {
-      mqttClient.publish("ventilation/gateway/reboot", "0");
+      mqttClient.publish("ventilation/cmd/reboot", "0");
+      ESP.restart();
     }
+  }
+  else if (strcmp(topic, "ventilation/cmd/version") == 0)
+  {
+    if (inputString != String(COMPILED))
+    {
+      mqttClient.publish(topic, String(COMPILED).c_str());
+    }
+  }
+  else
+  {
+    mqttClient.publish("ventilation/error/topic", topic);
   }
   lastMsg = -MQTT_SEND_INTERVAL;
 }
@@ -526,9 +545,39 @@ void setup()
   mqttClient.setCallback(mqttCallback);
   mqttReconnect();
   mqttClient.publish("ventilation/gateway/boot", String(millis()).c_str());
-  IPaddress =  WiFi.localIP().toString();
+  IPaddress = WiFi.localIP().toString();
   mqttClient.publish("ventilation/gateway/ip", IPaddress.c_str());
 }
+
+#ifdef DEBUG_SCAN_TIME
+// Scan time is the time then looping part of a program runs in miliseconds.
+// Rule of thumb is to allow max 20ms to rule the program as runnning "live" and not async
+// Live running programs are relevant when expecting non buffered IO operations with the real world
+void scanTimer()
+{
+  if (scanCount > SCAN_COUNT_MAX)
+  {
+    return;
+  }
+  if (scanLast == -1)
+  {
+    scanLast = millis();
+    return;
+  }
+  scanTime = millis() - scanLast;
+  if (scanTime > scanMax)
+    scanMax = scanTime;
+  if (scanTime < scanMin)
+    scanMin = scanTime;
+  scanCount++;
+  scanMovingAvr = scanTime * (0.3 / (1 + scanCount)) + scanMovingAvr * (1 - (0.3 / (1 + scanCount)));
+  if (scanCount > SCAN_COUNT_MAX)
+  {
+    mqttClient.publish("ventilation/debug/scanMovingAvr", String(floor(scanMovingAvr * 100) / 100).c_str());
+  }
+  scanLast = millis();
+}
+#endif
 
 void loop()
 {
@@ -733,4 +782,7 @@ void loop()
       }
     }
   }
+#ifdef DEBUG_SCAN_TIME
+  scanTimer();
+#endif
 }

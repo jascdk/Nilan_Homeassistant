@@ -55,13 +55,14 @@ Here are all commands you are able to send back for controlling it. I recommend 
 
 | Command | Input |Description |
 | ---   |---| ---|
-|`ventilation/ventset`| 0-4 | Set ventilation speed |
-|`ventilation/modeset`| 0-4 |Actual operation mode.0=Off, 1=Heat, 2=Cool, 3=Auto, 4=Service |
-|`ventilation/runset`| 0-1 | User on / off select (equal to ON/OFF keys) |
-|`ventilation/tempset`| 500-2500 | Set temperature the celsius * 100 |
-|`ventilation/programset`| 0 - 4 | Start week program index |
-|`ventilation/gateway/update`| 1 | Gateway has OTA active always but can be hard to reach if some but in config is made. This puts gateway into OTA update mode for 60  seconds.  |
-|`ventilation/gateway/reboot`| 1 | Reboots gateway |
+|`ventilation/cmd/ventset`| 0-4 | Set ventilation speed |
+|`ventilation/cmd/modeset`| 0-4 |Actual operation mode.0=Off, 1=Heat, 2=Cool, 3=Auto, 4=Service |
+|`ventilation/cmd/runset`| 0-1 | User on / off select (equal to ON/OFF keys) |
+|`ventilation/cmd/tempset`| 500-2500 | Set temperature the celsius * 100 |
+|`ventilation/cmd/programset`| 0 - 4 | Start week program index |
+|`ventilation/cmd/update`| 1 | Gateway has OTA active always but can be hard to reach if some but in config is made. This puts gateway into OTA update mode for 60  seconds.  |
+|`ventilation/cmd/reboot`| 1 | Reboots gateway |
+|`ventilation/cmd/version`| 1 | Reports compiled date back |
 
 
 # Installation
