@@ -45,7 +45,7 @@
 #define DEBUG_SCAN_TIME // Turn on/off debugging of scan times
 #ifdef DEBUG_SCAN_TIME
 // Scan time variables
-#define SCAN_COUNT_MAX 20000
+#define SCAN_COUNT_MAX 100000
 int scanTime = -1; // Used to measure scan times of program
 int scanLast = -1;
 int scanMax = -1;
@@ -573,6 +573,8 @@ void scanTimer()
   scanMovingAvr = scanTime * (0.3 / (1 + scanCount)) + scanMovingAvr * (1 - (0.3 / (1 + scanCount)));
   if (scanCount > SCAN_COUNT_MAX)
   {
+    mqttClient.publish("ventilation/debug/scanMin", String(scanMin).c_str());
+    mqttClient.publish("ventilation/debug/scanMax", String(scanMax).c_str());
     mqttClient.publish("ventilation/debug/scanMovingAvr", String(floor(scanMovingAvr * 100) / 100).c_str());
   }
   scanLast = millis();
