@@ -60,7 +60,7 @@ Here are all commands you are able to send back for controlling it. I recommend 
 |`ventilation/cmd/runset`| 0-1 | User on / off select (equal to ON/OFF keys) |
 |`ventilation/cmd/tempset`| 500-2500 | Set temperature the celsius * 100 |
 |`ventilation/cmd/programset`| 0 - 4 | Start week program index |
-|`ventilation/cmd/update`| 1 | Gateway has OTA active always but can be hard to reach if some but in config is made. This puts gateway into OTA update mode for 60  seconds.  |
+|`ventilation/cmd/update`| 1 | Gateway has OTA active always but can be hard to reach if sometime. This puts gateway into OTA update mode for 60  seconds.  |
 |`ventilation/cmd/reboot`| 1 | Reboots gateway |
 |`ventilation/cmd/version`| 1 | Reports compiled date back |
 
@@ -72,10 +72,10 @@ Should run on most ESP8266 boards like: wemos D1 mini or nodeMCU.
 Edit configuration.h file to your liking including settings for wifi and mqtt broker.
 
 ## Upload to hardware
-I recommend using platform IO https://platformio.org/ inside Visual Studio Code as dependencies will be downloaded automatic i most cases due to the `platformio.ini` file.
+I recommend using platform IO https://platformio.org/ inside Visual Studio Code as dependencies will be downloaded automatic in most cases due to the `platformio.ini` file.
 
 ## Make electrical connection
-You can use both a hardware interface or a software one. Both should give you the same result. In theory they both should give the same result but I tent to use the hardware one.
+You can use both a hardware interface or a software one. Both should give you the same result. In theory they both should give the same result but I tent to use the hardware one in production but the software one to allow for some debug messages via serial port.
 
 Connect Tx of ESP to Rx on RS485 board. And Rx of ESP to Tx of RS485 board.
 
