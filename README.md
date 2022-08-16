@@ -1,8 +1,10 @@
 # Unofficial gateway for Nilan ventilation system
 
-This little cool project lets you use you lets you control and read values from your Nilan air vent system. Used with Nilan Comfort 300 LR combined with the CTS602 panel. And should be compatible with other models.
+This little cool project lets you control your Nilan air vent system. Eg. Used with Nilan Comfort 300 LR combined with the CTS602 panel. And should be compatible with other models.
 
-Can be used with Openhab, Home Assistant, Node-red or anything else your heat desires.
+Can be used with Openhab, Home Assistant, Node-red or anything else your heart desires.
+
+Easy compile source code via Platform.io setup.
 
 ![SVG preview of system](images/overview.svg)
 
