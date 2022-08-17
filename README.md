@@ -77,7 +77,7 @@ Edit configuration.h file to your liking including settings for wifi and mqtt br
 I recommend using platform IO https://platformio.org/ inside Visual Studio Code as dependencies will be downloaded automatic in most cases due to the `platformio.ini` file.
 
 ## Make electrical connection
-You can use both a hardware interface or a software one. Both should give you the same result. In theory they both should give the same result but I tent to use the hardware one in production but the software one to allow for some debug messages via serial port.
+You can use both a hardware interface or a software one. In theory they both should give the same result but I tent to use the hardware one in production setup and the software one during debugging to allow debug messages via serial port.
 
 Connect Tx of ESP to Rx on RS485 board. And Rx of ESP to Tx of RS485 board.
 
