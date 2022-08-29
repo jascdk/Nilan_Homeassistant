@@ -8,7 +8,7 @@ Easy compile source code via Platform.io setup.
 
 ![SVG preview of system](images/overview.svg)
 
-This is a fork of https://github.com/jascdk/Nilan_Homeassistant
+This is a fork of https://github.com/jascdk/Nilan_Homeassistant mainly made to support platform.io.
 
 Which in turn is a fork of https://github.com/DanGunvald/NilanModbus
 
