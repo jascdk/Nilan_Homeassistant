@@ -1,0 +1,10 @@
+Switch nilanrun {mqtt=">[my:ventilation/RunSet:command:ON:1],>[my:ventilation/RunSet:command:OFF:0]"}
+Number nilanrunstate {mqtt="<[my:ventilation/control/RunSet:state:REGEX(([0-9-]+))]"}
+Number nilanmode {mqtt=">[my:ventilation/ModeSet:state::default]"}
+Number nilanmodestate {mqtt="<[my:ventilation/control/ModeSet:state:REGEX(([0-9-]+))]"}
+Number nilanvent {mqtt=">[my:ventilation/VentSet:state::default]"}
+Number nilanventstate {mqtt="<[my:ventilation/control/VentSet:state:REGEX(([0-9-]+))]"}
+Number nilantemp {mqtt=">[my:ventilation/TempSet:state::REGEX(([0-9-]+))]"}
+Number nilantempstate {mqtt="<[my:ventilation/control/TempSet:state:REGEX(([0-9-]+))]"}
+Number nilaninlet "Ventilation indgang temp [%s]" {mqtt="<[my:temp/T7_Inlet:state:REGEX(.?([0-9.]+).]"}
+Number nilanoutside "Ventilation ude temp [%s]" {mqtt="<[my:temp/T8_Outdoor:state:REGEX(.?([0-9.]+).*]"}

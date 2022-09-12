@@ -1,54 +1,49 @@
-# Make your Nilan Air ventilating system way more cool ;)
+# Unofficial gateway for Nilan ventilation system
 
-This little cool project lets you use you Home Assistant to control and read values from your Nilan air vent system. I have the Nilan Comfort 300 combined with the CTS602 panel. It works great, but do not know if it is compatible with other models.
+This little cool project lets you control your Nilan air vent system. Eg. Used with Nilan Comfort 300 LR combined with the CTS602 panel. And should be compatible with other models.
 
-The code for the project is not developed by me, but I made some adjustmenst to it, so it would integrate better with Home Assistant. The project is originally made for use with OpenHab.
+Can be used with Openhab, Home Assistant, Node-red or anything else your heart desires.
 
-For the original project look here: https://github.com/DanGunvald/NilanModbus
+Easy compile source code via Platform.io setup.
 
-Please proceed this project at your own risk!!!
+![SVG preview of system](images/overview.svg)
 
-UPDATE 19/2-2020 : Got the code working with ArduinoJson version 6 (updated from version 5). Version 6 had some big breaking changes.
+This is a fork of https://github.com/jascdk/Nilan_Homeassistant mainly made to support platform.io.
 
-UPDATE 1/1-2020 : Now added a .ino file for use with a Nilan VPL15 system. Creates some others sensors over the Comfort 300 system. thanks to Martin Skeem for editing / coding :)
+Which in turn is a fork of https://github.com/DanGunvald/NilanModbus
 
-## Okay lets get to it!
+# How to use:
+You can use this either via MQTT messages or via web request
 
-### Installing the firmware:
-
-I used the arduino editor to upload the code to my ESP8266 (for now a wemos D1 mini). If your sketch wont compile please check if you use the arduino.json V. 5 or V.6 library. This code uses V.6 and wont build with V.5. 
-
-For setting up your wifi and mqtt broker provide your credentials in the configuration.h file
-
-
-### Setup the Hardware:
-
-For my project i use af Wemos D1 mini board connected to a RS485 board (bought form ali-express). You connect from the Wemos the RX to RX on the RS485 and the TX to TX. This wont work if you cross them.
-
-Then connect the RS485 A,B and GND channel to the corresponding ports on you Nilan Vent System.
-
-### Getting values by HTTP:
-
+## Web
 You can get some json values from the Nilan by calling to it via HTTP. Just use your browser and type:
 
-`DEVICE` - corresponds to the IP adress you you device (esp8266)
+`http://[ip]/help` - This should give you som registers
 
-`http://[device]/help` - This should give you som registers
+`http://[ip]/read/app` - This would for example give you some status of the output
 
-`http://[device]/read/output` - This would for example give you some status of the output
+`http://[ip]/get/[adress]/[amountOfAdresessToRead]/[0=InputRegister(default),1=HoldingRegister]`- This would make you able to read raw data from controller 
 
-`http://[device]/set/[group]/[adress]/[value]`- This would make you able to send commands through HTTP 
+`http://[ip]/set/[group]/[adress]/[value]`- This would make you able to send commands through HTTP 
+
+
 
 e.g
+
+`http://10.0.1.16/read/app` This is a great starter to give you info about the modbus connection being ok as this reads from the safest area of the modbus registers. Other commands might fail as controller don't know the status of the requested index e.g. if sensor is not connected or optional board is not connected.
+
+`http://10.0.1.16/get/610/6/1` Will return read values of addresses 610-615 in holding register range. 
 
 `http://10.0.1.16/set/control/1004/2700` This will set your temperature to 27 degrees. 
 
 
-### Getting values by MQTT:
+## Getting values by MQTT:
 
-Here is where it all shines - the code puts out som useful MQTT topics to monitor different thing.
+There is a lot of topics to be found here. I recommend using "MQTT Explorer" to se what is published.
 
-Any MQTT-Tool (I use on my mac a tool called "MQTT Box") can be used to get the values by subscribing to :
+### Listen
+
+Here are some to listen on:
 
 `ventilation/temp/#`- This will give the temperatures from all the sensors.
 
@@ -56,34 +51,41 @@ Any MQTT-Tool (I use on my mac a tool called "MQTT Box") can be used to get the 
 
 `ventilation/#` - This gives the output of the system - fan speed etc. Remember the payloads are given in values not text.
 
-### Integrate with Home Assistant.
+### Write back
 
-For my integration i use a package with all my Nilan config yaml in just one file. The file can be downloaded above (config.yaml).
+Here are all commands you are able to send back for controlling it. I recommend sending the commands as retained messages to make sure that any faults or reboot of the controller does not affect the outcome. Retained messages are cleared once the command is accepted.
 
-After a restart of Home Assistant you will get alot of new sensors. These can be integrated in Home Assistant in different ways. I use the integrated Lovelace UI to make my UI. You can see below, how it can look like:)
-
-![HA_GUI](https://github.com/jascdk/Nilan_Homeassistant/blob/master/Home%20Assistant/HA_GUI.png)
-
-### Making External displays, that shows you the Nilan Data:
-
-I have tried to make some LCD´s using some 4x16 rows displays together with an ESP32 running ESP-Home www.esphome.io .
-
-If you wanna try it out you can use my provided .yaml code for ESP-Home above:)
-
-### SPECIAL THANKS for contribution to this project goes to: @anderskvist https://github.com/anderskvist :)
-
+| Command | Input |Description |
+| ---   |---| ---|
+|`ventilation/cmd/ventset`| 0-4 | Set ventilation speed |
+|`ventilation/cmd/modeset`| 0-4 |Actual operation mode.0=Off, 1=Heat, 2=Cool, 3=Auto, 4=Service |
+|`ventilation/cmd/runset`| 0-1 | User on / off select (equal to ON/OFF keys) |
+|`ventilation/cmd/tempset`| 500-2500 | Set temperature to celsius * 100 |
+|`ventilation/cmd/programset`| 0 - 4 | Start week program index |
+|`ventilation/cmd/update`| 1 | Gateway has OTA active always but can be hard to reach if sometime. This puts gateway into OTA update mode for 60  seconds.  |
+|`ventilation/cmd/reboot`| 1 | Reboots gateway |
+|`ventilation/cmd/version`| 1 | Reports compiled date back |
 
 
+# Installation
+Should run on most ESP8266 boards like: wemos D1 mini or nodeMCU.
 
+## Config
+Edit configuration.h file to your liking including settings for wifi and mqtt broker.
 
+## Upload to hardware
+I recommend using platform IO https://platformio.org/ inside Visual Studio Code as dependencies will be downloaded automatic in most cases due to the `platformio.ini` file.
 
+## Make electrical connection
+You can use both a hardware interface or a software one. In theory they both should give the same result but I tent to use the hardware one in production setup and the software one during debugging to allow debug messages via serial port.
 
+Connect Tx of ESP to Rx on RS485 board. And Rx of ESP to Tx of RS485 board.
 
+RS485 I used: [MAX3485 Module TTL To RS485 Module MCU](https://www.aliexpress.com/item/32828100565.html)
 
+![RS485-board.JPG](images/RS485-board.JPG)
 
+This is my setup with the Nilan HMI still connected and working fine:
 
-
-
-
-
+![connection.JPG](images/connection.JPG)
 
